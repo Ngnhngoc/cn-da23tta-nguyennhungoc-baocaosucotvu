@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sơ Đồ ERD Chuẩn Merise (CDM) - Đại Học Trà Vinh (Tiếng Việt)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #F1F5F9;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #0F172A;
+      padding: 24px;
+    }
+    .header-bar {
+      max-width: 1540px;
+      margin: 0 auto 20px auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #FFFFFF;
+      padding: 16px 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+      border: 1px solid #E2E8F0;
+    }
+    .title h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1E3A8A;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .title p {
+      font-size: 13px;
+      color: #64748B;
+      margin-top: 4px;
+    }
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #2563EB;
+      color: #FFFFFF;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+    }
+    .btn-download:hover {
+      background: #1D4ED8;
+      transform: translateY(-1px);
+    }
+    /* Khung vẽ sơ đồ ERD y hệt giao diện PowerDesigner CDM */
+    .erd-wrapper {
+      max-width: 1540px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      border: 1px solid #CBD5E1;
+      overflow-x: auto;
+    }
+    .erd-canvas {
+      width: 1500px;
+      height: 1050px;
+      background: #FFFFFF;
+      margin: 0 auto;
+      position: relative;
+    }
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header-bar">
+    <div class="title">
+      <h1>🏛️ SƠ ĐỒ THỰC THỂ QUAN HỆ (ERD - CDM MERISE) - ĐẠI HỌC TRÀ VINH (TVU)</h1>
+      <p>Mô hình dữ liệu quan niệm tiếng Việt: Thực thể (Xanh ngọc) - Mối kết hợp viên thuốc (Tím) - Bản số (1,1 và 1,n)</p>
+    </div>
+    <button class="btn-download" onclick="downloadAsPng()">
+      📸 Tải Ảnh Sơ Đồ PNG (Nét Cao Để Nộp Bài)
+    </button>
+  </div>
+
+  <div class="erd-wrapper">
+    <div class="erd-canvas">
+      <svg id="erd-svg" viewBox="0 0 1500 1050" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <!-- Màu thực thể độc lập: Xanh ngọc (Cyan) chuẩn PowerDesigner -->
+          <linearGradient id="cyanEntity" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#E6FAF8"/>
+            <stop offset="100%" stop-color="#C2F3ED"/>
+          </linearGradient>
+
+          <!-- Màu thực thể liên kết giao dịch: Tím nhạt (Lavender) chuẩn PowerDesigner -->
+          <linearGradient id="purpleAssoc" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#F3EDFF"/>
+            <stop offset="100%" stop-color="#DCD0FC"/>
+          </linearGradient>
+
+          <!-- Màu mối kết hợp viên thuốc: Xanh dương nhạt -->
+          <linearGradient id="pillRel" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#EFF6FF"/>
+            <stop offset="100%" stop-color="#DBEAFE"/>
+          </linearGradient>
+        </defs>
+
+        <!-- =============================================================== -->
+        <!-- 1. CÁC ĐƯỜNG LIÊN KẾT (CONNECTORS)                              -->
+        <!-- =============================================================== -->
+        <g stroke="#3B82F6" stroke-width="1.4" fill="none">
+          <!-- KHUÔN VIÊN -> thuoc_ve -> DÃY NHÀ -->
+          <polyline points="150,150 150,195"/>
+          <polyline points="150,233 150,270"/>
+
+          <!-- DÃY NHÀ -> chua_phong -> PHÒNG HỌC -->
+          <polyline points="150,420 150,465"/>
+          <polyline points="150,503 150,540"/>
+
+          <!-- PHÒNG HỌC -> xay_ra_tai -> SỰ CỐ -->
+          <polyline points="280,680 370,680"/>
+          <polyline points="470,680 540,680 540,580"/>
+
+          <!-- LOẠI SỰ CỐ -> thuoc_loai -> SỰ CỐ -->
+          <polyline points="540,165 540,215"/>
+          <polyline points="540,253 540,330"/>
+
+          <!-- NGƯỜI DÙNG -> bao_cao -> SỰ CỐ -->
+          <polyline points="800,200 700,200 700,330"/>
+
+          <!-- NGƯỜI DÙNG -> phan_cong_cho -> SỰ CỐ -->
+          <polyline points="860,285 860,460 780,460"/>
+
+          <!-- SỰ CỐ -> co_hinh_anh -> HÌNH ẢNH SỰ CỐ -->
+          <polyline points="780,370 1020,370 1020,230 1080,230"/>
+          <!-- NGƯỜI DÙNG -> chup_anh -> HÌNH ẢNH SỰ CỐ -->
+          <polyline points="1030,135 1200,135 1200,160"/>
+
+          <!-- SỰ CỐ -> co_lich_su -> LỊCH SỬ XỬ LÝ -->
+          <polyline points="780,480 1080,480"/>
+          <!-- NGƯỜI DÙNG -> cap_nhat -> LỊCH SỬ XỬ LÝ -->
+          <polyline points="1010,180 1045,180 1045,540 1080,540"/>
+
+          <!-- SỰ CỐ -> duoc_nghiem_thu -> ĐÁNH GIÁ NGHIỆM THU -->
+          <polyline points="740,580 740,750 1080,750"/>
+          <!-- NGƯỜI DÙNG -> danh_gia -> ĐÁNH GIÁ NGHIỆM THU -->
+          <polyline points="920,285 920,800 1080,800"/>
+
+          <!-- NGƯỜI DÙNG -> nhan_thong_bao -> THÔNG BÁO -->
+          <polyline points="960,285 960,905 760,905"/>
+          <!-- SỰ CỐ -> lien_quan_su_co -> THÔNG BÁO -->
+          <polyline points="620,580 620,830"/>
+        </g>
+
+        <!-- =============================================================== -->
+        <!-- 2. BẢN SỐ (CARDINALITY: 1,1 và 1,n)                            -->
+        <!-- =============================================================== -->
+        <g font-family="'Segoe UI', Tahoma, sans-serif" font-size="12px" font-weight="700" fill="#1E3A8A">
+          <!-- KHUÔN VIÊN - DÃY NHÀ -->
+          <text x="160" y="175">1,1</text>
+          <text x="160" y="260">1,n</text>
+
+          <!-- DÃY NHÀ - PHÒNG HỌC -->
+          <text x="160" y="445">1,1</text>
+          <text x="160" y="530">1,n</text>
+
+          <!-- PHÒNG HỌC - SỰ CỐ -->
+          <text x="290" y="672">1,1</text>
+          <text x="515" y="620">1,n</text>
+
+          <!-- LOẠI SỰ CỐ - SỰ CỐ -->
+          <text x="550" y="185">1,1</text>
+          <text x="550" y="315">1,n</text>
+
+          <!-- NGƯỜI DÙNG - SỰ CỐ (Báo cáo) -->
+          <text x="765" y="193">1,1</text>
+          <text x="710" y="315">1,n</text>
+
+          <!-- NGƯỜI DÙNG - SỰ CỐ (Phân công KTV) -->
+          <text x="870" y="310">0,1</text>
+          <text x="790" y="452">1,n</text>
+
+          <!-- SỰ CỐ - HÌNH ẢNH -->
+          <text x="790" y="362">1,1</text>
+          <text x="1045" y="222">1,n</text>
+          <text x="1040" y="130">1,1</text>
+
+          <!-- SỰ CỐ - LỊCH SỬ -->
+          <text x="790" y="472">1,1</text>
+          <text x="1045" y="472">1,n</text>
+
+          <!-- SỰ CỐ - ĐÁNH GIÁ -->
+          <text x="750" y="605">1,1</text>
+          <text x="1045" y="742">0,1</text>
+
+          <!-- NGƯỜI DÙNG - THÔNG BÁO -->
+          <text x="970" y="310">1,1</text>
+          <text x="775" y="900">1,n</text>
+          <text x="630" y="605">0,1</text>
+        </g>
+
+        <!-- =============================================================== -->
+        <!-- 3. MỐI QUAN HỆ VIÊN THUỐC (RELATIONSHIP PILLS - TIẾNG VIỆT)    -->
+        <!-- =============================================================== -->
+        <!-- thuộc về -->
+        <g transform="translate(105, 195)">
+          <rect width="90" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="45" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">thuộc về</text>
+        </g>
+
+        <!-- chứa phòng -->
+        <g transform="translate(100, 465)">
+          <rect width="100" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="50" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">chứa phòng</text>
+        </g>
+
+        <!-- xảy ra tại -->
+        <g transform="translate(370, 661)">
+          <rect width="100" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="50" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">xảy ra tại</text>
+        </g>
+
+        <!-- thuộc loại -->
+        <g transform="translate(495, 215)">
+          <rect width="90" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="45" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">thuộc loại</text>
+        </g>
+
+        <!-- báo cáo -->
+        <g transform="translate(685, 181)">
+          <rect width="80" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="40" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">báo cáo</text>
+        </g>
+
+        <!-- phân công -->
+        <g transform="translate(795, 441)">
+          <rect width="90" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="45" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">phân công</text>
+        </g>
+
+        <!-- có hình ảnh -->
+        <g transform="translate(970, 351)">
+          <rect width="95" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="47" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">có hình ảnh</text>
+        </g>
+
+        <!-- chụp bởi -->
+        <g transform="translate(1155, 116)">
+          <rect width="90" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="45" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">chụp bởi</text>
+        </g>
+
+        <!-- có lịch sử -->
+        <g transform="translate(975, 461)">
+          <rect width="90" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="45" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">có lịch sử</text>
+        </g>
+
+        <!-- cập nhật -->
+        <g transform="translate(1005, 521)">
+          <rect width="80" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="40" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">cập nhật</text>
+        </g>
+
+        <!-- nghiệm thu -->
+        <g transform="translate(975, 731)">
+          <rect width="90" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="45" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">nghiệm thu</text>
+        </g>
+
+        <!-- đánh giá -->
+        <g transform="translate(980, 781)">
+          <rect width="80" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="40" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">đánh giá</text>
+        </g>
+
+        <!-- nhận TB -->
+        <g transform="translate(865, 886)">
+          <rect width="85" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="42" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">nhận TB</text>
+        </g>
+
+        <!-- kích hoạt -->
+        <g transform="translate(575, 715)">
+          <rect width="90" height="38" rx="19" fill="url(#pillRel)" stroke="#2563EB" stroke-width="1.3"/>
+          <text x="45" y="23" font-family="'Segoe UI', sans-serif" font-size="12px" font-weight="600" fill="#1E40AF" text-anchor="middle">kích hoạt</text>
+        </g>
+
+        <!-- =============================================================== -->
+        <!-- 4. THỰC THỂ GỐC: HÌNH CHỮ NHẬT XANH NGỌC (CYAN)                -->
+        <!-- =============================================================== -->
+
+        <!-- 1. KHUÔN VIÊN -->
+        <g transform="translate(40, 40)">
+          <rect width="220" height="110" rx="3" fill="url(#cyanEntity)" stroke="#00796B" stroke-width="1.5"/>
+          <text x="110" y="22" font-family="'Segoe UI', sans-serif" font-size="13px" font-weight="700" fill="#004D40" text-anchor="middle">KHUON_VIEN</text>
+          <line x1="0" y1="30" x2="220" y2="30" stroke="#00796B" stroke-width="1.2"/>
+          <text x="12" y="48" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#0F172A">ma_khuon_vien</text>
+          <text x="200" y="48" font-family="Consolas, monospace" font-size="11px" font-weight="bold" fill="#DC2626" text-anchor="end">&lt;pi&gt;</text>
+          <text x="12" y="68" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ten_khuon_vien</text><text x="208" y="68" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="88" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ma_viet_tat</text><text x="208" y="88" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="106" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">dia_chi</text><text x="208" y="106" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Text</text>
+        </g>
+
+        <!-- 2. DÃY NHÀ -->
+        <g transform="translate(40, 270)">
+          <rect width="220" height="150" rx="3" fill="url(#cyanEntity)" stroke="#00796B" stroke-width="1.5"/>
+          <text x="110" y="22" font-family="'Segoe UI', sans-serif" font-size="13px" font-weight="700" fill="#004D40" text-anchor="middle">DAY_NHA</text>
+          <line x1="0" y1="30" x2="220" y2="30" stroke="#00796B" stroke-width="1.2"/>
+          <text x="12" y="48" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#0F172A">ma_day_nha</text>
+          <text x="200" y="48" font-family="Consolas, monospace" font-size="11px" font-weight="bold" fill="#DC2626" text-anchor="end">&lt;pi&gt;</text>
+          <text x="12" y="70" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ten_day_nha</text><text x="208" y="70" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="92" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ma_toa (B3, A4)</text><text x="208" y="92" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="114" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">tong_so_tang</text><text x="208" y="114" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Int</text>
+        </g>
+
+        <!-- 3. PHÒNG HỌC & TRANG THIẾT BỊ KHU A & B -->
+        <g transform="translate(30, 540)">
+          <rect width="250" height="320" rx="3" fill="url(#cyanEntity)" stroke="#00796B" stroke-width="1.5"/>
+          <text x="125" y="22" font-family="'Segoe UI', sans-serif" font-size="13px" font-weight="700" fill="#004D40" text-anchor="middle">PHONG_HOC</text>
+          <line x1="0" y1="30" x2="250" y2="30" stroke="#00796B" stroke-width="1.2"/>
+          <text x="12" y="48" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#0F172A">ma_phong_hoc</text>
+          <text x="230" y="48" font-family="Consolas, monospace" font-size="11px" font-weight="bold" fill="#DC2626" text-anchor="end">&lt;pi&gt;</text>
+          <text x="12" y="70" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#004D40">so_phong (B31.101)</text><text x="238" y="70" font-family="Consolas, monospace" font-size="11px" fill="#004D40" text-anchor="end">Varc</text>
+          <text x="12" y="92" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">loai_phong</text><text x="238" y="92" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="114" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">tang_so</text><text x="238" y="114" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Int</text>
+          <text x="12" y="136" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ma_qr_dinh_danh</text><text x="238" y="136" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="158" font-family="Consolas, monospace" font-size="12px" fill="#1E3A8A">so_may_lanh (=2)</text><text x="238" y="158" font-family="Consolas, monospace" font-size="11px" fill="#1E3A8A" text-anchor="end">Int</text>
+          <text x="12" y="180" font-family="Consolas, monospace" font-size="12px" fill="#1E3A8A">so_quat (2 tran/4 dien)</text><text x="238" y="180" font-family="Consolas, monospace" font-size="11px" fill="#1E3A8A" text-anchor="end">Int</text>
+          <text x="12" y="202" font-family="Consolas, monospace" font-size="12px" fill="#1E3A8A">so_tivi (=1)</text><text x="238" y="202" font-family="Consolas, monospace" font-size="11px" fill="#1E3A8A" text-anchor="end">Int</text>
+          <text x="12" y="224" font-family="Consolas, monospace" font-size="12px" fill="#1E3A8A">so_cong_hdmi (=1)</text><text x="238" y="224" font-family="Consolas, monospace" font-size="11px" fill="#1E3A8A" text-anchor="end">Int</text>
+          <text x="12" y="246" font-family="Consolas, monospace" font-size="12px" fill="#1E3A8A">so_bang_viet (=1)</text><text x="238" y="246" font-family="Consolas, monospace" font-size="11px" fill="#1E3A8A" text-anchor="end">Int</text>
+          <text x="12" y="268" font-family="Consolas, monospace" font-size="12px" fill="#1E3A8A">so_ban_sv (14-18)</text><text x="238" y="268" font-family="Consolas, monospace" font-size="11px" fill="#1E3A8A" text-anchor="end">Int</text>
+          <text x="12" y="290" font-family="Consolas, monospace" font-size="12px" fill="#1E3A8A">so_ban_gv (=1)</text><text x="238" y="290" font-family="Consolas, monospace" font-size="11px" fill="#1E3A8A" text-anchor="end">Int</text>
+          <text x="12" y="310" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">dang_su_dung</text><text x="238" y="310" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Bool</text>
+        </g>
+
+        <!-- 4. LOẠI SỰ CỐ -->
+        <g transform="translate(430, 35)">
+          <rect width="220" height="130" rx="3" fill="url(#cyanEntity)" stroke="#00796B" stroke-width="1.5"/>
+          <text x="110" y="22" font-family="'Segoe UI', sans-serif" font-size="13px" font-weight="700" fill="#004D40" text-anchor="middle">LOAI_SU_CO</text>
+          <line x1="0" y1="30" x2="220" y2="30" stroke="#00796B" stroke-width="1.2"/>
+          <text x="12" y="48" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#0F172A">ma_loai_su_co</text>
+          <text x="200" y="48" font-family="Consolas, monospace" font-size="11px" font-weight="bold" fill="#DC2626" text-anchor="end">&lt;pi&gt;</text>
+          <text x="12" y="70" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ten_loai_su_co</text><text x="208" y="70" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="92" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">bieu_tuong</text><text x="208" y="92" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="114" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">mo_ta_chi_tiet</text><text x="208" y="114" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Text</text>
+        </g>
+
+        <!-- 5. NGƯỜI DÙNG -->
+        <g transform="translate(800, 35)">
+          <rect width="230" height="250" rx="3" fill="url(#cyanEntity)" stroke="#00796B" stroke-width="1.5"/>
+          <text x="115" y="22" font-family="'Segoe UI', sans-serif" font-size="13px" font-weight="700" fill="#004D40" text-anchor="middle">NGUOI_DUNG</text>
+          <line x1="0" y1="30" x2="230" y2="30" stroke="#00796B" stroke-width="1.2"/>
+          <text x="12" y="48" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#0F172A">ma_nguoi_dung</text>
+          <text x="210" y="48" font-family="Consolas, monospace" font-size="11px" font-weight="bold" fill="#DC2626" text-anchor="end">&lt;pi&gt;</text>
+          <text x="12" y="70" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ten_dang_nhap</text><text x="218" y="70" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="92" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ho_va_ten</text><text x="218" y="92" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="114" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">email_tvu</text><text x="218" y="114" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="136" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">so_dien_thoai</text><text x="218" y="136" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="158" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">mat_khau_hash</text><text x="218" y="158" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="180" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#7C3AED">vai_tro (SV, GV, KTV)</text><text x="218" y="180" font-family="Consolas, monospace" font-size="11px" fill="#7C3AED" text-anchor="end">Varc</text>
+          <text x="12" y="202" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">lop_hoac_don_vi</text><text x="218" y="202" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="12" y="224" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ngay_tao</text><text x="218" y="224" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Date</text>
+          <text x="12" y="244" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">dang_hoat_dong</text><text x="218" y="244" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Bool</text>
+        </g>
+
+        <!-- =============================================================== -->
+        <!-- 5. THỰC THỂ SINH TỪ QUAN HỆ GIAO DỊCH: HÌNH OVAL TÍM (LAVENDER) -->
+        <!-- =============================================================== -->
+
+        <!-- 6. SỰ CỐ (TRUNG TÂM GIAO DỊCH) -->
+        <g transform="translate(460, 330)">
+          <rect width="320" height="250" rx="36" fill="url(#purpleAssoc)" stroke="#7C3AED" stroke-width="2"/>
+          <text x="160" y="28" font-family="'Segoe UI', sans-serif" font-size="14px" font-weight="700" fill="#4C1D95" text-anchor="middle">SU_CO</text>
+          <line x1="20" y1="36" x2="300" y2="36" stroke="#7C3AED" stroke-width="1.2"/>
+          <text x="30" y="58" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#0F172A">ma_su_co_id</text>
+          <text x="280" y="58" font-family="Consolas, monospace" font-size="11px" font-weight="bold" fill="#DC2626" text-anchor="end">&lt;pi&gt;</text>
+          <text x="30" y="80" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#4C1D95">ma_phieu (SC-YYYYMMDD)</text><text x="288" y="80" font-family="Consolas, monospace" font-size="11px" fill="#4C1D95" text-anchor="end">Varc</text>
+          <text x="30" y="102" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">tieu_de</text><text x="288" y="102" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="30" y="124" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">mo_ta_hu_hong</text><text x="288" y="124" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Text</text>
+          <text x="30" y="146" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">vi_tri_trong_phong</text><text x="288" y="146" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="30" y="168" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">muc_do_uu_tien</text><text x="288" y="168" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="30" y="190" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#DC2626">trang_thai (Pending/Resolved)</text><text x="288" y="190" font-family="Consolas, monospace" font-size="11px" fill="#DC2626" text-anchor="end">Varc</text>
+          <text x="30" y="212" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ngay_gui_bao_cao</text><text x="288" y="212" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Date</text>
+          <text x="30" y="234" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ngay_hoan_thanh</text><text x="288" y="234" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Date</text>
+        </g>
+
+        <!-- 7. HÌNH ẢNH SỰ CỐ -->
+        <g transform="translate(1080, 160)">
+          <rect width="250" height="150" rx="28" fill="url(#purpleAssoc)" stroke="#7C3AED" stroke-width="1.6"/>
+          <text x="125" y="24" font-family="'Segoe UI', sans-serif" font-size="13px" font-weight="700" fill="#4C1D95" text-anchor="middle">HINH_ANH_SU_CO</text>
+          <line x1="15" y1="32" x2="235" y2="32" stroke="#7C3AED" stroke-width="1.2"/>
+          <text x="24" y="54" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#0F172A">ma_hinh_anh</text>
+          <text x="220" y="54" font-family="Consolas, monospace" font-size="11px" font-weight="bold" fill="#DC2626" text-anchor="end">&lt;pi&gt;</text>
+          <text x="24" y="76" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">duong_dan_anh</text><text x="228" y="76" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="24" y="98" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">loai_anh (Report/Res)</text><text x="228" y="98" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="24" y="120" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ngay_chup_anh</text><text x="228" y="120" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Date</text>
+        </g>
+
+        <!-- 8. LỊCH SỬ TIẾN TRÌNH -->
+        <g transform="translate(1080, 420)">
+          <rect width="250" height="170" rx="28" fill="url(#purpleAssoc)" stroke="#7C3AED" stroke-width="1.6"/>
+          <text x="125" y="24" font-family="'Segoe UI', sans-serif" font-size="13px" font-weight="700" fill="#4C1D95" text-anchor="middle">LICH_SU_XU_LY</text>
+          <line x1="15" y1="32" x2="235" y2="32" stroke="#7C3AED" stroke-width="1.2"/>
+          <text x="24" y="54" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#0F172A">ma_lich_su</text>
+          <text x="220" y="54" font-family="Consolas, monospace" font-size="11px" font-weight="bold" fill="#DC2626" text-anchor="end">&lt;pi&gt;</text>
+          <text x="24" y="76" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">trang_thai_cu</text><text x="228" y="76" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="24" y="98" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">trang_thai_moi</text><text x="228" y="98" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="24" y="120" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">noi_dung_ghi_chu</text><text x="228" y="120" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Text</text>
+          <text x="24" y="142" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">thoi_gian_cap_nhat</text><text x="228" y="142" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Date</text>
+        </g>
+
+        <!-- 9. ĐÁNH GIÁ NGHIỆM THU -->
+        <g transform="translate(1080, 680)">
+          <rect width="250" height="150" rx="28" fill="url(#purpleAssoc)" stroke="#7C3AED" stroke-width="1.6"/>
+          <text x="125" y="24" font-family="'Segoe UI', sans-serif" font-size="13px" font-weight="700" fill="#4C1D95" text-anchor="middle">DANH_GIA_NGHIEM_THU</text>
+          <line x1="15" y1="32" x2="235" y2="32" stroke="#7C3AED" stroke-width="1.2"/>
+          <text x="24" y="54" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#0F172A">ma_danh_gia</text>
+          <text x="220" y="54" font-family="Consolas, monospace" font-size="11px" font-weight="bold" fill="#DC2626" text-anchor="end">&lt;pi&gt;</text>
+          <text x="24" y="76" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#D97706">so_sao_hai_long (1-5★)</text><text x="228" y="76" font-family="Consolas, monospace" font-size="11px" fill="#D97706" text-anchor="end">Int</text>
+          <text x="24" y="98" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">y_kien_phan_hoi</text><text x="228" y="98" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Text</text>
+          <text x="24" y="120" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ngay_danh_gia</text><text x="228" y="120" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Date</text>
+        </g>
+
+        <!-- 10. THÔNG BÁO HỆ THỐNG -->
+        <g transform="translate(500, 830)">
+          <rect width="260" height="150" rx="28" fill="url(#purpleAssoc)" stroke="#7C3AED" stroke-width="1.6"/>
+          <text x="130" y="24" font-family="'Segoe UI', sans-serif" font-size="13px" font-weight="700" fill="#4C1D95" text-anchor="middle">THONG_BAO</text>
+          <line x1="15" y1="32" x2="245" y2="32" stroke="#7C3AED" stroke-width="1.2"/>
+          <text x="24" y="54" font-family="Consolas, monospace" font-size="12px" font-weight="bold" fill="#0F172A">ma_thong_bao</text>
+          <text x="230" y="54" font-family="Consolas, monospace" font-size="11px" font-weight="bold" fill="#DC2626" text-anchor="end">&lt;pi&gt;</text>
+          <text x="24" y="76" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">tieu_de</text><text x="238" y="76" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Varc</text>
+          <text x="24" y="98" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">noi_dung_thong_bao</text><text x="238" y="98" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Text</text>
+          <text x="24" y="120" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">da_doc</text><text x="238" y="120" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Bool</text>
+          <text x="24" y="140" font-family="Consolas, monospace" font-size="12px" fill="#0F172A">ngay_gui</text><text x="238" y="140" font-family="Consolas, monospace" font-size="11px" fill="#475569" text-anchor="end">Date</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <script>
+    // Hàm tải sơ đồ về máy dưới dạng hình ảnh PNG nét căng
+    function downloadAsPng() {
+      const svgElement = document.getElementById('erd-svg');
+      const svgString = new XMLSerializer().serializeToString(svgElement);
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const URL = window.URL || window.webkitURL || window;
+      const blobURL = URL.createObjectURL(svgBlob);
+      
+      const image = new Image();
+      image.onload = function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1500 * 2; // Nhân 2 để ảnh cực nét
+        canvas.height = 1050 * 2;
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#FFFFFF';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        
+        const pngURL = canvas.toDataURL('image/png');
+        const downloadLink = document.createElement('a');
+        downloadLink.download = 'SO_DO_ERD_CDM_TIENG_VIET_TVU.png';
+        downloadLink.href = pngURL;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+      };
+      image.src = blobURL;
+    }
+  </script>
+</body>
+</html>

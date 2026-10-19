@@ -1,0 +1,29 @@
+# .NET Build artifacts
+backend/bin/
+backend/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Flutter / Dart
+mobile/.dart_tool/
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/.pub-cache/
+mobile/.pub/
+
+# IDE & OS
+.vscode/
+.vs/
+.idea/
+*.swp
+*.lock
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs
+*.log

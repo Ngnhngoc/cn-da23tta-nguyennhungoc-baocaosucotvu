@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sơ Đồ ERD Cơ Sở Dữ Liệu TVU - Hệ Thống Báo Cáo Sự Cố CSVC</title>
+  <!-- Mermaid JS for vector-grade crisp rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1565C0;
+      --primary-dark: #0D47A1;
+      --associative: #E65100;
+      --associative-light: #FF9800;
+      --bg: #0F172A;
+      --card-bg: #1E293B;
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
+      --border: #334155;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 36px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+
+    .header-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: rgba(21, 101, 192, 0.25);
+      color: #60A5FA;
+      border: 1px solid #2563EB;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #FFFFFF;
+      margin-bottom: 8px;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+
+    /* LEGEND BOX */
+    .legend-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      align-items: center;
+    }
+
+    .legend-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: #CBD5E1;
+      margin-right: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      padding: 6px 14px;
+      border-radius: 8px;
+    }
+
+    .legend-master {
+      background: rgba(30, 136, 229, 0.15);
+      border: 1px solid #1E88E5;
+      color: #90CAF9;
+    }
+
+    .legend-master .color-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      background: #1E88E5;
+    }
+
+    .legend-associative {
+      background: rgba(255, 143, 0, 0.15);
+      border: 1px solid #FF8F00;
+      color: #FFB74D;
+    }
+
+    .legend-associative .color-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      background: #FF8F00;
+    }
+
+    .legend-diamond {
+      background: rgba(148, 163, 184, 0.1);
+      border: 1px solid #64748B;
+      color: #CBD5E1;
+    }
+
+    .legend-diamond .color-dot {
+      width: 12px;
+      height: 12px;
+      background: #94A3B8;
+      transform: rotate(45deg);
+    }
+
+    /* DIAGRAM WRAPPER */
+    .diagram-card {
+      background: #FFFFFF;
+      border-radius: 16px;
+      padding: 30px;
+      margin-bottom: 28px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+      overflow-x: auto;
+    }
+
+    .diagram-title {
+      color: #0F172A;
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .btn-print {
+      background: #0284C7;
+      color: #fff;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-print:hover {
+      background: #0369A1;
+    }
+
+    .mermaid {
+      display: flex;
+      justify-content: center;
+      min-width: 1000px;
+    }
+
+    /* CARDINALITY EXPLANATION TABLE */
+    .info-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .info-card h2 {
+      font-size: 18px;
+      color: #FFFFFF;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: rgba(15, 23, 42, 0.6);
+      color: #94A3B8;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .badge-master {
+      background: rgba(30, 136, 229, 0.2);
+      color: #64B5F6;
+      border: 1px solid rgba(30, 136, 229, 0.4);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge-assoc {
+      background: rgba(255, 143, 0, 0.2);
+      color: #FFB74D;
+      border: 1px solid rgba(255, 143, 0, 0.4);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .cardinality-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: #38BDF8;
+      background: rgba(56, 189, 248, 0.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+        color: #000;
+        padding: 0;
+      }
+      .btn-print, .header-badge {
+        display: none;
+      }
+      .diagram-card {
+        box-shadow: none;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="header-badge">TRƯỜNG ĐẠI HỌC TRÀ VINH (TVU) • CƠ SỞ DỮ LIỆU SQL SERVER</div>
+    <h1>Sơ Đồ Thực Thể Quan Hệ (ERD) - Hệ Thống Báo Cáo Sự Cố CSVC</h1>
+    <p class="subtitle">Phân định rõ Thực thể Độc lập (Master) và Thực thể Kết hợp sinh ra từ mối quan hệ nhiều-nhiều (N-N &rarr; 1-N & 1-N) cùng bản số tương ứng.</p>
+  </header>
+
+  <!-- LEGEND -->
+  <div class="legend-box">
+    <span class="legend-title">QUY TẮC MÀU SẮC TRÊN SƠ ĐỒ:</span>
+    <div class="legend-item legend-master">
+      <div class="color-dot"></div>
+      <strong>Màu Xanh Dương:</strong> Thực thể Gốc / Độc Lập (Master Entity)
+    </div>
+    <div class="legend-item legend-associative">
+      <div class="color-dot"></div>
+      <strong>Màu Cam Hổ Phách:</strong> Thực thể Kết Hợp sinh từ quan hệ 1-N & 1-N (Associative Entity)
+    </div>
+    <div class="legend-item legend-diamond">
+      <div class="color-dot"></div>
+      <strong>Hình Thoi:</strong> Mối liên kết nghiệp vụ & ghi chú bản số (1 - N)
+    </div>
+  </div>
+
+  <!-- SƠ ĐỒ CHÍNH -->
+  <div class="diagram-card">
+    <div class="diagram-title">
+      <span>SƠ ĐỒ THỰC THỂ QUAN HỆ TOÀN DIỆN (CONCEPTUAL & LOGICAL ERD)</span>
+      <button class="btn-print" onclick="window.print()">In hoặc Lưu PDF</button>
+    </div>
+
+    <div class="mermaid">
+flowchart TB
+    %% Styling Classes
+    classDef master fill:#1E88E5,stroke:#0D47A1,stroke-width:2.5px,color:#FFFFFF,font-family:Inter,font-weight:bold;
+    classDef assoc fill:#E65100,stroke:#BF360C,stroke-width:3px,color:#FFFFFF,font-family:Inter,font-weight:bold;
+    classDef rel fill:#F1F5F9,stroke:#475569,stroke-width:1.5px,color:#0F172A,font-size:12px;
+
+    %% MASTER ENTITIES (MÀU XANH DƯƠNG)
+    CAMPUSES["CAMPUSES<br/>(Khuôn viên: Khu 1, Khu 2)"]:::master
+    BUILDINGS["BUILDINGS<br/>(Dãy: B3, A4, A1, D1)"]:::master
+    ROOMS["ROOMS<br/>(Phòng TVU: B31.101, A42.103)"]:::master
+    CATEGORIES["CATEGORIES<br/>(Loại: Điện, Máy lạnh, IT...)"]:::master
+    USERS["USERS<br/>(SV, GV, KTV, Quản trị viên)"]:::master
+
+    %% ASSOCIATIVE ENTITIES (MÀU CAM - SINH TỪ QUAN HỆ 1-N & 1-N)
+    INCIDENTS["INCIDENTS<br/>★ THỰC THỂ GIAO DỊCH TRUNG TÂM ★<br/>(Sinh ra từ: USERS + ROOMS + CATEGORIES)"]:::assoc
+    INCIDENT_IMAGES["INCIDENT_IMAGES<br/>(Sinh từ: INCIDENTS + USERS)"]:::assoc
+    INCIDENT_HISTORIES["INCIDENT_HISTORIES<br/>(Sinh từ: INCIDENTS + USERS)"]:::assoc
+    INCIDENT_FEEDBACKS["INCIDENT_FEEDBACKS<br/>(Sinh từ: INCIDENTS + USERS)"]:::assoc
+    NOTIFICATIONS["NOTIFICATIONS<br/>(Sinh từ: USERS + INCIDENTS)"]:::assoc
+
+    %% 1-N HIERARCHY
+    CAMPUSES -- "1" --- R1{"Thuộc khuôn viên"}:::rel --- "N" --> BUILDINGS
+    BUILDINGS -- "1" --- R2{"Chứa phòng học"}:::rel --- "N" --> ROOMS
+
+    %% N-N RESOLVED INTO 1-N CONVERGING AT INCIDENTS
+    ROOMS -- "1" --- R3{"Xảy ra tại"}:::rel --- "N" --> INCIDENTS
+    CATEGORIES -- "1" --- R4{"Phân loại"}:::rel --- "N" --> INCIDENTS
+    USERS -- "1 (Người báo)" --- R5{"Gửi báo cáo"}:::rel --- "N" --> INCIDENTS
+    USERS -- "0..1 (KTV)" --- R6{"Được giao việc"}:::rel --- "N" --> INCIDENTS
+
+    %% SECONDARY ASSOCIATIVE ENTITIES
+    INCIDENTS -- "1" --- R7{"Đính kèm"}:::rel --- "N" --> INCIDENT_IMAGES
+    USERS -- "1 (Người tải)" --- R8{"Chụp ảnh"}:::rel --- "N" --> INCIDENT_IMAGES
+
+    INCIDENTS -- "1" --- R9{"Ghi nhận"}:::rel --- "N" --> INCIDENT_HISTORIES
+    USERS -- "1 (Người sửa)" --- R10{"Cập nhật"}:::rel --- "N" --> INCIDENT_HISTORIES
+
+    INCIDENTS -- "1" --- R11{"Nghiệm thu"}:::rel --- "0..1" --> INCIDENT_FEEDBACKS
+    USERS -- "1 (Người gửi)" --- R12{"Đánh giá sao"}:::rel --- "N" --> INCIDENT_FEEDBACKS
+
+    USERS -- "1" --- R13{"Nhận tin"}:::rel --- "N" --> NOTIFICATIONS
+    INCIDENTS -- "0..1" --- R14{"Liên quan"}:::rel --- "N" --> NOTIFICATIONS
+    </div>
+  </div>
+
+  <!-- BẢNG GIẢI THÍCH CHI TIẾT BẢN SỐ & NGUỒN GỐC -->
+  <div class="info-card">
+    <h2>Bảng Phân Tích Bản Số (Cardinality) & Lý Giải Thực Thể Sinh Ra Từ Quan Hệ 1-N & 1-N</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Tên Thực Thể</th>
+          <th>Phân Loại</th>
+          <th>Quan Hệ Nguồn Gốc (Phân Rã N-N)</th>
+          <th>Bản Số (Cardinality)</th>
+          <th>Ý Nghĩa Nghiệp Vụ Thực Tế Tại TVU</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>CAMPUSES</strong></td>
+          <td><span class="badge-master">Thực thể Gốc</span></td>
+          <td>Độc lập</td>
+          <td><span class="cardinality-tag">1 : N</span> sang Buildings</td>
+          <td>Quản lý danh sách các cơ sở (Khu 1: 126 Nguyễn Thiện Thành, Khu 2: Hòa Thuận).</td>
+        </tr>
+        <tr>
+          <td><strong>BUILDINGS</strong></td>
+          <td><span class="badge-master">Thực thể Gốc</span></td>
+          <td>Phụ thuộc Campuses</td>
+          <td><span class="cardinality-tag">1 : N</span> sang Rooms</td>
+          <td>Quản lý các dãy nhà học (Dãy B3 Khoa KT&CN, Dãy A4 Giảng đường, Tòa nhà A1...).</td>
+        </tr>
+        <tr>
+          <td><strong>ROOMS</strong></td>
+          <td><span class="badge-master">Thực thể Gốc</span></td>
+          <td>Phụ thuộc Buildings</td>
+          <td><span class="cardinality-tag">1 : N</span> sang Incidents</td>
+          <td>Quản lý phòng học chuẩn TVU (B31.101, A42.103...). Mỗi phòng gắn 1 mã QR cố định.</td>
+        </tr>
+        <tr>
+          <td><strong>CATEGORIES</strong></td>
+          <td><span class="badge-master">Thực thể Gốc</span></td>
+          <td>Độc lập</td>
+          <td><span class="cardinality-tag">1 : N</span> sang Incidents</td>
+          <td>Phân nhóm lỗi hư hỏng: Điện & Chiếu sáng, Máy lạnh, Máy tính & CNTT, Cấp thoát nước...</td>
+        </tr>
+        <tr>
+          <td><strong>USERS</strong></td>
+          <td><span class="badge-master">Thực thể Gốc</span></td>
+          <td>Độc lập</td>
+          <td><span class="cardinality-tag">1 : N</span> sang Incidents / Histories</td>
+          <td>Quản lý thông tin tài khoản: Quản lý CSVC, Kỹ thuật viên bảo trì, Sinh viên và Giảng viên.</td>
+        </tr>
+        <tr>
+          <td><strong>INCIDENTS</strong></td>
+          <td><span class="badge-assoc">Thực thể Kết Hợp (Màu Cam)</span></td>
+          <td><strong>USERS (N) &times; ROOMS (N) &times; CATEGORIES (N)</strong></td>
+          <td><span class="cardinality-tag">N : N &rarr; 1:N & 1:N</span></td>
+          <td><strong>Thực thể giao dịch trung tâm</strong>: Thay vì để quan hệ nhiều-nhiều giữa Sinh viên, Phòng học và Danh mục, mô hình sinh ra thực thể trung gian <code>INCIDENTS</code> để lưu vết từng phiếu báo hỏng.</td>
+        </tr>
+        <tr>
+          <td><strong>INCIDENT_IMAGES</strong></td>
+          <td><span class="badge-assoc">Thực thể Kết Hợp (Màu Cam)</span></td>
+          <td><strong>INCIDENTS (1-N) + USERS (1-N)</strong></td>
+          <td><span class="cardinality-tag">1 : N</span></td>
+          <td>Một sự cố có thể có nhiều hình ảnh chụp lúc báo hoặc sau khi sửa chữa; Mỗi ảnh do một người dùng tải lên.</td>
+        </tr>
+        <tr>
+          <td><strong>INCIDENT_HISTORIES</strong></td>
+          <td><span class="badge-assoc">Thực thể Kết Hợp (Màu Cam)</span></td>
+          <td><strong>INCIDENTS (1-N) + USERS (1-N)</strong></td>
+          <td><span class="cardinality-tag">1 : N</span></td>
+          <td>Ghi nhận dòng thời gian (Timeline) xử lý sự cố qua từng bước: Tiếp nhận &rarr; Phân công &rarr; Đang sửa &rarr; Nghiệm thu.</td>
+        </tr>
+        <tr>
+          <td><strong>INCIDENT_FEEDBACKS</strong></td>
+          <td><span class="badge-assoc">Thực thể Kết Hợp (Màu Cam)</span></td>
+          <td><strong>INCIDENTS (1-1) + USERS (1-N)</strong></td>
+          <td><span class="cardinality-tag">1 : 0..1</span></td>
+          <td>Mỗi sự cố chỉ cho phép người gửi đánh giá chất lượng nghiệm thu tối đa 1 lần (1 - 5 sao kèm ý kiến).</td>
+        </tr>
+        <tr>
+          <td><strong>NOTIFICATIONS</strong></td>
+          <td><span class="badge-assoc">Thực thể Kết Hợp (Màu Cam)</span></td>
+          <td><strong>USERS (1-N) + INCIDENTS (0..1-N)</strong></td>
+          <td><span class="cardinality-tag">1 : N</span></td>
+          <td>Thông báo gửi đến người dùng khi có sự thay đổi trạng thái sự cố hoặc được phân công việc mới.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    flowchart: {
+      useMaxWidth: false,
+      htmlLabels: true,
+      curve: 'basis'
+    }
+  });
+</script>
+</body>
+</html>

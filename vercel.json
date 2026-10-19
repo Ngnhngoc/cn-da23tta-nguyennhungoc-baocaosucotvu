@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "outputDirectory": "backend/wwwroot",
+  "routes": [
+    {
+      "src": "/qr_stickers.html",
+      "dest": "/qr_stickers.html"
+    },
+    {
+      "src": "/app/(.*)",
+      "dest": "/app/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/app/$1"
+    }
+  ]
+}

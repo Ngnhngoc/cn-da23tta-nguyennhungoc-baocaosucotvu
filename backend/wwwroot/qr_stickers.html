@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mã QR Định Danh Phòng Học & CSVC - Đại học Trà Vinh (TVU)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Montserrat', sans-serif;
+        }
+        body {
+            background-color: #f1f5f9;
+            padding: 30px 15px;
+            color: #1e293b;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        header h1 {
+            color: #0055a5;
+            font-size: 26px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        header p {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 6px;
+        }
+        .standard-box {
+            background: #ffffff;
+            border-left: 5px solid #0055a5;
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .standard-box strong {
+            color: #0055a5;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 20px;
+        }
+        .sticker {
+            background: white;
+            border: 2px dashed #0055a5;
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 85, 165, 0.08);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .sticker-badge {
+            background: #0055a5;
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            align-self: center;
+        }
+        .room-title {
+            font-size: 24px;
+            font-weight: 800;
+            color: #003b73;
+        }
+        .room-desc {
+            font-size: 13px;
+            color: #64748b;
+            margin: 4px 0 12px;
+            font-weight: 600;
+        }
+        .equipment-list {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 11px;
+            color: #334155;
+            margin-bottom: 12px;
+            line-height: 1.6;
+            border: 1px solid #e2e8f0;
+        }
+        .equipment-list ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .equipment-list li::before {
+            content: "✓ ";
+            color: #0284c7;
+            font-weight: bold;
+        }
+        .qr-wrapper {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            padding: 10px;
+            border-radius: 12px;
+            display: inline-block;
+            margin: 0 auto 10px auto;
+        }
+        .qr-wrapper img {
+            width: 170px;
+            height: 170px;
+            display: block;
+        }
+        .qr-code-text {
+            font-family: monospace;
+            font-weight: 700;
+            font-size: 13px;
+            color: #0284c7;
+            background: #f0f9ff;
+            padding: 5px 12px;
+            border-radius: 6px;
+            display: inline-block;
+            align-self: center;
+        }
+        .footer-note {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 10px;
+        }
+        .print-btn {
+            background: #0055a5;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 12px;
+            transition: 0.2s;
+        }
+        .print-btn:hover {
+            background: #003b73;
+        }
+        @media print {
+            .standard-box, .print-btn { display: none; }
+            body { background: white; padding: 0; }
+            .sticker { page-break-inside: avoid; margin-bottom: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Trường Đại học Trà Vinh</h1>
+            <p>Hệ Thống Tem Mã QR Định Danh Cơ Sở Vật Chất & Phòng Học (Khu A & Khu B)</p>
+            <button class="print-btn" onclick="window.print()">🖨️ In Danh Sách Tem QR Dán Cửa Phòng</button>
+        </header>
+
+        <div class="standard-box">
+            <strong>📋 Tiêu chuẩn trang thiết bị phòng học Khu A & Khu B (Đại học Trà Vinh):</strong><br>
+            Mỗi phòng học được trang bị đồng bộ: <strong>02 máy lạnh</strong> treo tường, <strong>02 quạt trần</strong> (hoặc <strong>04 quạt điện</strong>), <strong>01 Tivi trình chiếu</strong> màn hình lớn, <strong>01 cổng & dây cáp HDMI</strong> tại bục giảng, <strong>01 bảng mica trắng</strong>, từ <strong>14 đến 18 bàn sinh viên</strong> và <strong>01 bàn giáo viên</strong>.
+        </div>
+
+        <div class="grid" id="stickersContainer">
+            <!-- Rendered by API -->
+        </div>
+    </div>
+
+    <script>
+        async function loadStickers() {
+            try {
+                const res = await fetch('/api/rooms');
+                const rooms = await res.json();
+                const container = document.getElementById('stickersContainer');
+
+                container.innerHTML = rooms.map(r => `
+                    <div class="sticker">
+                        <div>
+                            <div class="sticker-badge">${r.campusName}</div>
+                            <div class="room-title">Phòng ${r.roomNumber}</div>
+                            <div class="room-desc">${r.buildingName} - Tầng ${r.floor}</div>
+                            
+                            <div class="equipment-list">
+                                <strong>Trang thiết bị chuẩn trong phòng:</strong>
+                                <ul>
+                                    <li>2 Máy lạnh (${r.airConditionerCount} máy)</li>
+                                    <li>${r.fanCount} ${r.fanType || 'Quạt trần'}</li>
+                                    <li>1 Smart Tivi + 1 Cổng HDMI</li>
+                                    <li>1 Bảng mica + 1 Bàn giáo viên</li>
+                                    <li>${r.studentDeskCount || 16} Bàn sinh viên</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="qr-wrapper">
+                                <img src="/api/rooms/${r.id}/qr-code-image?size=8" alt="QR Code ${r.roomNumber}">
+                            </div>
+                            <br>
+                            <div class="qr-code-text">Mã QR: ${r.qrCode}</div>
+                            <div class="footer-note">Quét mã bằng App TVU CSVC để báo cáo sự cố</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error(err);
+                document.getElementById('stickersContainer').innerHTML = '<p style="color:red; text-align:center;">Vui lòng khởi động backend API trước để nạp dữ liệu mã QR.</p>';
+            }
+        }
+        loadStickers();
+    </script>
+</body>
+</html>
