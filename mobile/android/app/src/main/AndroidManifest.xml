@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="vn.edu.tvu.facility_incident">
+    package="com.example.tvu_facility_mobile">
 
     <!-- Permissions for Camera, Gallery, and Network -->
     <uses-permission android:name="android.permission.INTERNET" />
