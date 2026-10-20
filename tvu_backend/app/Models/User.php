@@ -2,44 +2,37 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
+    // Trỏ đúng bảng NGUOI_DUNG trong database tvu_suco
+    protected $table = 'NGUOI_DUNG';
+    protected $primaryKey = 'ma_nguoi_dung';
+    public $timestamps = false; // Bảng dùng cột ngay_tao riêng
+
     protected $fillable = [
-        'name',
-        'email',
-        'password',
+        'ten_dang_nhap',
+        'ho_va_ten',
+        'email_tvu',
+        'so_dien_thoai',
+        'mat_khau_ma_hoa',
+        'vai_tro',
+        'lop_hoac_don_vi',
+        'ngay_tao',
+        'dang_hoat_dong',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
     protected $hidden = [
-        'password',
-        'remember_token',
+        'mat_khau_ma_hoa',
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-    ];
+    // Báo cho Laravel biết cột lưu mật khẩu là mat_khau_ma_hoa (thay vì password)
+    public function getAuthPassword()
+    {
+        return $this->mat_khau_ma_hoa;
+    }
 }
