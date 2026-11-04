@@ -30,10 +30,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  # Thêm các thư viện bên dưới dòng này:
+  dio: ^5.7.0                    # Dùng để gọi API từ Laravel
+  shared_preferences: ^2.3.2     # Lưu token đăng nhập cục bộ trên máy
+  mobile_scanner: ^5.2.3         # Tích hợp camera quét mã QR
+  image_picker: ^1.1.2           # Chọn/Chụp ảnh từ điện thoại
+  provider: ^6.1.2               # Quản lý trạng thái (State Management)
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:

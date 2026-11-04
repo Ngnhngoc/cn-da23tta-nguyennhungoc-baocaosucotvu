@@ -1,0 +1,7 @@
+# Executable binaries
+ngrok.exe
+
+# Build artifacts
+tvu_mobile/android/build/
+tvu_mobile/build/
+.dart_tool/

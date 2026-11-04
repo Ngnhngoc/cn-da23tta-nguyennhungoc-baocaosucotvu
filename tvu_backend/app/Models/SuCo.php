@@ -38,4 +38,10 @@ class SuCo extends Model
     {
         return $this->belongsTo(User::class, 'nguoi_bao_cao_id', 'ma_nguoi_dung');
     }
+
+    // Liên kết với kỹ thuật viên được phân công
+    public function kyThuatVien()
+    {
+        return $this->belongsTo(User::class, 'ky_thuat_vien_id', 'ma_nguoi_dung');
+    }
 }
