@@ -25,3 +25,19 @@ Route::post('/admin/rooms', [AdminController::class, 'addRoom'])->name('admin.ro
 Route::post('/admin/rooms/{id}/equipments', [AdminController::class, 'updateRoomEquipments'])->name('admin.rooms.equipments');
 Route::post('/admin/users', [AdminController::class, 'addUser'])->name('admin.users.store');
 Route::get('/admin/rooms/{id}/print', [AdminController::class, 'printRoomQr'])->name('admin.rooms.print');
+
+// Phục vụ file tĩnh kèm CORS header cho Flutter Web & Mobile
+Route::get('/storage/{path}', function ($path) {
+    $fullPath = storage_path('app/public/' . $path);
+    if (!file_exists($fullPath)) {
+        abort(404);
+    }
+    $mimeType = mime_content_type($fullPath) ?: 'application/octet-stream';
+    return response()->file($fullPath, [
+        'Content-Type' => $mimeType,
+        'Access-Control-Allow-Origin' => '*',
+        'Access-Control-Allow-Methods' => 'GET, HEAD, OPTIONS',
+        'Access-Control-Allow-Headers' => '*',
+    ]);
+})->where('path', '.*');
+

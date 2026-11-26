@@ -7,7 +7,7 @@ echo          KHOI PHUC CO SO DU LIEU (MySQL)
 echo =======================================================
 echo.
 
-set "BACKUP_FILE=%~dp0database_backup\tvu_suco_latest.sql"
+set "BACKUP_FILE=%~dp0..\database_backup\tvu_suco_latest.sql"
 set "MYSQL=C:\laragon\bin\mysql\mysql-8.0.30-winx64\bin\mysql.exe"
 
 if not exist "%BACKUP_FILE%" (

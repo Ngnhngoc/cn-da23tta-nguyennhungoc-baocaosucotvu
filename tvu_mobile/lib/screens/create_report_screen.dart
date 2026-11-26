@@ -558,7 +558,8 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                   Expanded(
                     child: Text(
                       'Đã chọn: ${_formatRoom(_selectedRoomData)} • Mã: ${_selectedRoomData!['ma_qr_dinh_danh']} • '
-                      'Trang bị: ${_selectedRoomData!['so_may_lanh']} máy lạnh, ${_selectedRoomData!['so_quat']} quạt, ${_selectedRoomData!['so_tivi']} TV',
+                      'Trang bị: ${_selectedRoomData!['so_may_lanh']} máy lạnh, ${_selectedRoomData!['so_quat']} quạt, ${_selectedRoomData!['so_tivi']} TV'
+                      '${(int.tryParse('${_selectedRoomData!['so_may_tinh']}') ?? 0) > 0 ? ', ${_selectedRoomData!['so_may_tinh']} máy tính, ${_selectedRoomData!['so_ban_phim']} phím, ${_selectedRoomData!['so_cpu']} CPU' : ''}',
                       style: TextStyle(fontSize: 12, color: Colors.blue.shade900, fontWeight: FontWeight.w600),
                     ),
                   ),

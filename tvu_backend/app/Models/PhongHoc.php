@@ -24,6 +24,10 @@ class PhongHoc extends Model
         'so_bang_viet',
         'so_ban_sinh_vien',
         'so_ban_giao_vien',
+        'so_may_tinh',
+        'so_ban_phim',
+        'so_cpu',
+        'so_chuot',
         'mo_ta_hien_trang',
         'dang_su_dung',
     ];

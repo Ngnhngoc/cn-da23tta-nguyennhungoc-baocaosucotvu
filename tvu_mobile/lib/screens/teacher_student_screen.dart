@@ -626,21 +626,25 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                                 scrollDirection: Axis.horizontal,
                                 itemCount: imagesList.length,
                                 itemBuilder: (context, imgIdx) {
-                                  final imgUrl = imagesList[imgIdx];
+                                  final raw = imagesList[imgIdx];
+                                  final imgUrl = ApiService.formatImageUrl(raw);
                                   return Padding(
                                     padding: const EdgeInsets.only(right: 8),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.network(
-                                        imgUrl,
-                                        height: 70,
-                                        width: 70,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (c, e, s) => Container(
-                                          width: 70,
+                                    child: InkWell(
+                                      onTap: () => _showZoomImage(context, imgUrl),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          imgUrl,
                                           height: 70,
-                                          color: Colors.grey.shade200,
-                                          child: const Icon(Icons.image, size: 20, color: Colors.grey),
+                                          width: 70,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (c, e, s) => Container(
+                                            width: 70,
+                                            height: 70,
+                                            color: Colors.grey.shade200,
+                                            child: const Icon(Icons.image, size: 20, color: Colors.grey),
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -742,6 +746,55 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
         backgroundColor: Colors.white,
         side: BorderSide(color: isSelected ? const Color(0xFF0D47A1) : Colors.grey.shade300),
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      ),
+    );
+  }
+
+  void _showZoomImage(BuildContext context, String url) {
+    if (url.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            InteractiveViewer(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  errorBuilder: (c, e, s) => Container(
+                    padding: const EdgeInsets.all(24),
+                    color: Colors.white,
+                    child: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                        SizedBox(height: 8),
+                        Text('Không thể tải ảnh'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 10,
+              right: 10,
+              child: InkWell(
+                onTap: () => Navigator.pop(ctx),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                  child: const Icon(Icons.close, color: Colors.white, size: 22),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

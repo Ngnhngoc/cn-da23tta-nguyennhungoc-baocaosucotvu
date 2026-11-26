@@ -238,6 +238,10 @@
                                 <p><i class="fa-solid fa-snowflake text-cyan-600 w-4"></i> Máy lạnh: <strong>{{ $r->so_may_lanh }}</strong></p>
                                 <p><i class="fa-solid fa-fan text-blue-600 w-4"></i> Quạt: <strong>{{ $r->so_quat }}</strong></p>
                                 <p><i class="fa-solid fa-tv text-purple-600 w-4"></i> TV / Chiếu: <strong>{{ $r->so_tivi }}</strong></p>
+                                @if(($r->so_may_tinh ?? 0) > 0)
+                                <p><i class="fa-solid fa-desktop text-indigo-600 w-4"></i> Máy tính: <strong>{{ $r->so_may_tinh }}</strong> • CPU: <strong>{{ $r->so_cpu }}</strong></p>
+                                <p><i class="fa-solid fa-keyboard text-slate-600 w-4"></i> Bàn phím: <strong>{{ $r->so_ban_phim }}</strong> • Chuột: <strong>{{ $r->so_chuot }}</strong></p>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -246,7 +250,7 @@
                         <span class="font-mono text-xs font-bold bg-blue-100 text-blue-900 px-2 py-0.5 rounded">
                             {{ $r->ma_qr_dinh_danh }}
                         </span>
-                        <button onclick="openEditEquipmentModal({{ $r->ma_phong_hoc }}, '{{ $r->so_phong }}', {{ $r->so_may_lanh }}, {{ $r->so_quat }}, {{ $r->so_tivi }})" class="text-xs text-blue-700 font-semibold hover:underline">
+                        <button onclick="openEditEquipmentModal({{ $r->ma_phong_hoc }}, '{{ $r->so_phong }}', {{ $r->so_may_lanh }}, {{ $r->so_quat }}, {{ $r->so_tivi }}, {{ $r->so_may_tinh ?? 0 }}, {{ $r->so_ban_phim ?? 0 }}, {{ $r->so_cpu ?? 0 }}, {{ $r->so_chuot ?? 0 }})" class="text-xs text-blue-700 font-semibold hover:underline">
                             <i class="fa-solid fa-pen-to-square"></i> Sửa thiết bị
                         </button>
                     </div>
@@ -309,6 +313,27 @@
                             <div>
                                 <label class="text-xs text-slate-600">Bảng viết</label>
                                 <input type="number" name="so_bang_viet" value="1" class="w-full border border-slate-300 rounded p-1.5 text-center">
+                            </div>
+                        </div>
+                        <div class="p-2 bg-blue-50 rounded border border-blue-200 mt-2 space-y-1">
+                            <p class="font-bold text-xs text-blue-900"><i class="fa-solid fa-desktop mr-1"></i> Dành cho Phòng Thực Hành (Tùy chọn):</p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="text-xs text-slate-600">Máy tính</label>
+                                    <input type="number" name="so_may_tinh" value="0" class="w-full border border-slate-300 rounded p-1 text-center bg-white">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-600">Bàn phím</label>
+                                    <input type="number" name="so_ban_phim" value="0" class="w-full border border-slate-300 rounded p-1 text-center bg-white">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-600">Thùng CPU</label>
+                                    <input type="number" name="so_cpu" value="0" class="w-full border border-slate-300 rounded p-1 text-center bg-white">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-600">Chuột</label>
+                                    <input type="number" name="so_chuot" value="0" class="w-full border border-slate-300 rounded p-1 text-center bg-white">
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -385,6 +410,27 @@
                         <label class="block font-semibold mb-1">Số lượng TV / Màn Chiếu</label>
                         <input type="number" id="editTv" name="so_tivi" min="0" class="w-full border border-slate-300 rounded-lg p-2 text-center">
                     </div>
+                    <div class="p-3 bg-blue-50 rounded-lg border border-blue-200 mt-2 space-y-2">
+                        <p class="font-bold text-xs text-blue-900"><i class="fa-solid fa-desktop mr-1"></i> Thiết bị Thực hành / Tin học</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-xs text-slate-600">Số Máy tính / Màn</label>
+                                <input type="number" id="editPc" name="so_may_tinh" min="0" class="w-full border border-slate-300 rounded p-1.5 text-center bg-white">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-600">Số Bàn phím</label>
+                                <input type="number" id="editKb" name="so_ban_phim" min="0" class="w-full border border-slate-300 rounded p-1.5 text-center bg-white">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-600">Số Thùng CPU</label>
+                                <input type="number" id="editCpu" name="so_cpu" min="0" class="w-full border border-slate-300 rounded p-1.5 text-center bg-white">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-600">Số Chuột</label>
+                                <input type="number" id="editMouse" name="so_chuot" min="0" class="w-full border border-slate-300 rounded p-1.5 text-center bg-white">
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="mt-6 flex justify-end space-x-2">
                     <button type="button" onclick="document.getElementById('modalEditEquipment').classList.add('hidden')" class="px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold hover:bg-slate-100">Hủy</button>
@@ -402,11 +448,15 @@
             }
         }
 
-        function openEditEquipmentModal(roomId, roomName, ac, fan, tv) {
+        function openEditEquipmentModal(roomId, roomName, ac, fan, tv, pc = 0, kb = 0, cpu = 0, mouse = 0) {
             document.getElementById('editRoomName').innerText = roomName;
             document.getElementById('editAc').value = ac;
             document.getElementById('editFan').value = fan;
             document.getElementById('editTv').value = tv;
+            document.getElementById('editPc').value = pc;
+            document.getElementById('editKb').value = kb;
+            document.getElementById('editCpu').value = cpu;
+            document.getElementById('editMouse').value = mouse;
             document.getElementById('formEditEquipment').action = '/admin/rooms/' + roomId + '/equipments';
             document.getElementById('modalEditEquipment').classList.remove('hidden');
         }

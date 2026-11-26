@@ -7,12 +7,10 @@ echo          DANG SAO LUU CO SO DU LIEU (MySQL)
 echo =======================================================
 echo.
 
-set "BACKUP_DIR=%~dp0database_backup"
+set "BACKUP_DIR=%~dp0..\database_backup"
 if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%"
 
-:: Lay ngay gio chuan tren Windows 10/11
 for /f "usebackq tokens=*" %%i in (`powershell -NoProfile -Command "Get-Date -Format 'yyyyMMdd_HHmmss'"`) do set "TIMESTAMP=%%i"
-
 set "MYSQLDUMP=C:\laragon\bin\mysql\mysql-8.0.30-winx64\bin\mysqldump.exe"
 
 if not exist "%MYSQLDUMP%" (
@@ -26,10 +24,5 @@ echo [1/2] Dang xuat toan bo CSDL 'tvu_suco' ra file...
 copy /Y "%BACKUP_DIR%\tvu_suco_backup_%TIMESTAMP%.sql" "%BACKUP_DIR%\tvu_suco_latest.sql" >nul
 
 echo [2/2] Da sao luu thanh cong!
-echo.
-echo =======================================================
-echo   DA SAO LUU CSDL THANH CONG:
 echo   - Ban moi nhat: %BACKUP_DIR%\tvu_suco_latest.sql
-echo   - Ban luu tru : %BACKUP_DIR%\tvu_suco_backup_%TIMESTAMP%.sql
-echo =======================================================
-echo.
+pause

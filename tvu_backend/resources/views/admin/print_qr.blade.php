@@ -155,7 +155,7 @@
         <div class="room-subtitle">{{ $room->ten_khu ?? 'Tòa B' }} • Tầng {{ $room->tang_so }}</div>
 
         <div class="equipment-box">
-            📦 <strong>Trang bị:</strong> {{ $room->so_may_lanh }} máy lạnh, {{ $room->so_quat }} quạt, {{ $room->so_tivi }} TV/chiếu
+            📦 <strong>Trang bị:</strong> {{ $room->so_may_lanh }} máy lạnh, {{ $room->so_quat }} quạt, {{ $room->so_tivi }} TV/chiếu@if(($room->so_may_tinh ?? 0) > 0), {{ $room->so_may_tinh }} máy tính, {{ $room->so_ban_phim }} phím, {{ $room->so_cpu }} CPU, {{ $room->so_chuot }} chuột @endif
         </div>
 
         <div class="footer-note">

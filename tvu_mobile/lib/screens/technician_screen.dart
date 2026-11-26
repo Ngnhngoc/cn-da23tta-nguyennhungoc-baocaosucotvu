@@ -37,6 +37,8 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
   }
 
   void _showZoomImage(BuildContext context, String url) {
+    final imgUrl = ApiService.formatImageUrl(url);
+    if (imgUrl.isEmpty) return;
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -49,7 +51,7 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  url,
+                  imgUrl,
                   fit: BoxFit.contain,
                   errorBuilder: (c, e, s) => Container(
                     padding: const EdgeInsets.all(24),
@@ -510,7 +512,7 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
             separatorBuilder: (c, i) => const SizedBox(width: 8),
             itemBuilder: (context, idx) {
               final raw = list[idx];
-              final imgUrl = raw is String ? raw : (raw['duong_dan_anh'] ?? '');
+              final imgUrl = ApiService.formatImageUrl(raw);
               return InkWell(
                 onTap: () => _showZoomImage(context, imgUrl),
                 child: Container(

@@ -1,8 +1,9 @@
-# Executable binaries
-ngrok.exe
+# Executable & binary artifacts
+*.exe
+*.apk
+apk_output/
 
 # Build artifacts
 tvu_mobile/android/build/
 tvu_mobile/build/
 .dart_tool/
-

@@ -1,15 +1,60 @@
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static String get baseUrl {
+  static const String _prefHostKey = 'custom_server_host';
+
+  /// Địa chỉ mặc định:
+  /// - Web: tự động theo host trình duyệt đang mở
+  /// - Android (LDPlayer / Máy thật): IP máy tính hiện tại (192.168.2.29:8000)
+  static String get defaultBaseUrl {
     if (kIsWeb) {
       final host = Uri.base.host;
       if (host.isNotEmpty) {
         return 'http://$host:8000/api';
       }
+      return 'http://localhost:8000/api';
     }
-    return 'http://172.20.10.2:8000/api';
+    return 'http://192.168.2.29:8000/api';
+  }
+
+  static String get baseUrl => _instance._dio.options.baseUrl;
+
+  /// Định dạng URL hình ảnh từ máy chủ để hiển thị chuẩn xác trên cả Flutter Web và Android/LDPlayer
+  static String formatImageUrl(dynamic raw) {
+    if (raw == null) return '';
+    String url = '';
+    if (raw is String) {
+      url = raw;
+    } else if (raw is Map) {
+      url = (raw['duong_dan_anh'] ?? raw['url'] ?? '').toString();
+    } else {
+      url = raw.toString();
+    }
+    url = url.trim();
+    if (url.isEmpty) return '';
+
+    // Lấy host gốc của server hiện tại (bỏ đuôi /api)
+    final serverBase = baseUrl.replaceAll(RegExp(r'/api/?$'), '');
+
+    // Nếu URL chứa localhost hoặc IP máy ảo mặc định 10.0.2.2 hoặc 127.0.0.1
+    if (url.startsWith('http://localhost:8000') ||
+        url.startsWith('http://127.0.0.1:8000') ||
+        url.startsWith('http://10.0.2.2:8000')) {
+      final uri = Uri.tryParse(url);
+      if (uri != null) {
+        return '$serverBase${uri.path}';
+      }
+    }
+
+    // Nếu URL là đường dẫn tương đối (ví dụ /storage/incidents/... hoặc storage/incidents/...)
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      final cleanPath = url.startsWith('/') ? url : '/$url';
+      return '$serverBase$cleanPath';
+    }
+
+    return url;
   }
 
   static final ApiService _instance = ApiService._internal();
@@ -21,15 +66,50 @@ class ApiService {
   ApiService._internal() {
     _dio = Dio(
       BaseOptions(
-        baseUrl: baseUrl,
+        baseUrl: defaultBaseUrl,
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 10),
         headers: {
           'Accept': 'application/json',
-          'ngrok-skip-browser-warning': 'true',
         },
       ),
     );
+  }
+
+  /// Tải địa chỉ Server đã lưu (nếu người dùng cấu hình IP riêng cho điện thoại thật/LDPlayer)
+  Future<void> loadSavedServerHost() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedHost = prefs.getString(_prefHostKey);
+      if (savedHost != null && savedHost.trim().isNotEmpty) {
+        _dio.options.baseUrl = _formatBaseUrl(savedHost.trim());
+      } else {
+        _dio.options.baseUrl = defaultBaseUrl;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> setCustomServerHost(String host) async {
+    final prefs = await SharedPreferences.getInstance();
+    final clean = host.trim();
+    if (clean.isEmpty) {
+      await prefs.remove(_prefHostKey);
+      _dio.options.baseUrl = defaultBaseUrl;
+    } else {
+      await prefs.setString(_prefHostKey, clean);
+      _dio.options.baseUrl = _formatBaseUrl(clean);
+    }
+  }
+
+  String _formatBaseUrl(String host) {
+    var h = host.replaceAll(RegExp(r'^https?://'), '').replaceAll(RegExp(r'/+$'), '');
+    if (h.endsWith('/api')) {
+      return 'http://$h';
+    }
+    if (!h.contains(':')) {
+      h = '$h:8000';
+    }
+    return 'http://$h/api';
   }
 
   void setToken(String token) {
@@ -344,6 +424,10 @@ class ApiService {
     int boardCount = 1,
     int studentDeskCount = 20,
     int teacherDeskCount = 1,
+    int computerCount = 0,
+    int keyboardCount = 0,
+    int cpuCount = 0,
+    int mouseCount = 0,
   }) async {
     try {
       final response = await _dio.post('/admin/rooms', data: {
@@ -360,6 +444,10 @@ class ApiService {
         'so_bang_viet': boardCount,
         'so_ban_sinh_vien': studentDeskCount,
         'so_ban_giao_vien': teacherDeskCount,
+        'so_may_tinh': computerCount,
+        'so_ban_phim': keyboardCount,
+        'so_cpu': cpuCount,
+        'so_chuot': mouseCount,
       });
       return response.data;
     } catch (e) {
@@ -385,6 +473,12 @@ class ApiService {
     required int tvCount,
     int hdmiCount = 1,
     int boardCount = 1,
+    int studentDeskCount = 20,
+    int teacherDeskCount = 1,
+    int computerCount = 0,
+    int keyboardCount = 0,
+    int cpuCount = 0,
+    int mouseCount = 0,
   }) async {
     try {
       final response = await _dio.post('/admin/rooms/$roomId/equipments', data: {
@@ -393,6 +487,12 @@ class ApiService {
         'so_tivi': tvCount,
         'so_cong_hdmi': hdmiCount,
         'so_bang_viet': boardCount,
+        'so_ban_sinh_vien': studentDeskCount,
+        'so_ban_giao_vien': teacherDeskCount,
+        'so_may_tinh': computerCount,
+        'so_ban_phim': keyboardCount,
+        'so_cpu': cpuCount,
+        'so_chuot': mouseCount,
       });
       return response.data;
     } catch (e) {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -45,10 +46,10 @@ class _QrScannerModalState extends State<QrScannerModal>
   void initState() {
     super.initState();
 
-    // Khởi tạo camera - ưu tiên camera trước cho laptop webcam, hoặc camera sau trên điện thoại
+    // Khởi tạo camera - webcam trước trên Web, camera sau trên Android/LDPlayer
     _scannerController = MobileScannerController(
       detectionSpeed: DetectionSpeed.normal,
-      facing: CameraFacing.front,
+      facing: kIsWeb ? CameraFacing.front : CameraFacing.back,
       returnImage: false,
     );
 

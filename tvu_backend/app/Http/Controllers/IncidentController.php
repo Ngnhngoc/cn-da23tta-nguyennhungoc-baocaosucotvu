@@ -154,17 +154,27 @@ class IncidentController extends Controller
     {
         $userId = $request->user()->ma_nguoi_dung;
 
-        $incidents = SuCo::with(['phongHoc', 'kyThuatVien'])
+        $incidents = SuCo::with(['phongHoc.dayNha.khuonVien', 'kyThuatVien'])
             ->where('nguoi_bao_cao_id', $userId)
             ->orderBy('ngay_gui_bao_cao', 'desc')
             ->get();
+
+        $base = $request->getSchemeAndHttpHost();
 
         // Gắn kèm danh sách hình ảnh & thông tin KTV
         foreach ($incidents as $item) {
             $images = DB::table('hinh_anh_su_co')
                 ->where('ma_su_co_id', $item->ma_su_co_id)
-                ->pluck('duong_dan_anh');
-            $item->hinh_anh_list = $images;
+                ->get();
+            $formattedImages = [];
+            foreach ($images as $img) {
+                $formattedImages[] = [
+                    'ma_hinh_anh'   => $img->ma_hinh_anh,
+                    'duong_dan_anh' => $this->formatImageUrl($img->duong_dan_anh, $base),
+                    'loai_hinh_anh' => $img->loai_hinh_anh,
+                ];
+            }
+            $item->hinh_anh_list = $formattedImages;
 
             $ktv = $item->kyThuatVien;
             $item->ktv_info = $ktv ? [
@@ -260,7 +270,7 @@ class IncidentController extends Controller
     // API Cho Admin & KTV: Lấy tất cả sự cố
     public function getAllIncidents(Request $request)
     {
-        $query = SuCo::with(['phongHoc', 'nguoiBaoCao', 'kyThuatVien']);
+        $query = SuCo::with(['phongHoc.dayNha.khuonVien', 'nguoiBaoCao', 'kyThuatVien']);
 
         // Nếu là KTV lọc các sự cố được giao hoặc chưa phân công
         if ($request->query('assigned_to_me') == 'true') {
@@ -268,11 +278,21 @@ class IncidentController extends Controller
         }
 
         $incidents = $query->orderBy('ngay_gui_bao_cao', 'desc')->get();
+        $base = $request->getSchemeAndHttpHost();
 
         foreach ($incidents as $item) {
-            $item->hinh_anh_list = DB::table('hinh_anh_su_co')
+            $images = DB::table('hinh_anh_su_co')
                 ->where('ma_su_co_id', $item->ma_su_co_id)
                 ->get();
+            $formattedImages = [];
+            foreach ($images as $img) {
+                $formattedImages[] = [
+                    'ma_hinh_anh'   => $img->ma_hinh_anh,
+                    'duong_dan_anh' => $this->formatImageUrl($img->duong_dan_anh, $base),
+                    'loai_hinh_anh' => $img->loai_hinh_anh,
+                ];
+            }
+            $item->hinh_anh_list = $formattedImages;
 
             $ktv = $item->kyThuatVien;
             $item->ktv_info = $ktv ? [
@@ -362,5 +382,16 @@ class IncidentController extends Controller
                 'resolved'   => $resolved,
             ]
         ], 200);
+    }
+
+    protected function formatImageUrl($url, $base)
+    {
+        if (empty($url)) return '';
+        $parsed = parse_url($url);
+        $path = $parsed['path'] ?? $url;
+        if (!str_starts_with($path, '/')) {
+            $path = '/' . $path;
+        }
+        return rtrim($base, '/') . $path;
     }
 }

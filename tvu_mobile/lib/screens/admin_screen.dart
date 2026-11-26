@@ -27,10 +27,17 @@ class _AdminScreenState extends State<AdminScreen> {
 
   // Bộ lọc sự cố
   String _selectedFilter = 'Tất cả';
+  String _incidentSearchQuery = '';
+  String _incidentCampusFilter = 'Tất cả';
+  String _incidentBuildingFilter = 'Tất cả';
+  String _incidentDateFilter = 'Tất cả';
+  DateTimeRange? _customDateRange;
+  final TextEditingController _incidentSearchCtrl = TextEditingController();
 
   // Bộ lọc & tìm kiếm phòng học
   String _roomSearchQuery = '';
   String _roomBuildingFilter = 'Tất cả';
+  String _roomCampusFilter = 'Tất cả';
 
   @override
   void initState() {
@@ -101,9 +108,88 @@ class _AdminScreenState extends State<AdminScreen> {
     return 'Khu I';
   }
 
+  bool _matchesDateFilter(String? dateStr) {
+    if (_incidentDateFilter == 'Tất cả') return true;
+    if (dateStr == null || dateStr.isEmpty) return false;
+
+    final parsedDate = DateTime.tryParse(dateStr);
+    if (parsedDate == null) return true;
+
+    final now = DateTime.now();
+    final itemDate = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
+    final today = DateTime(now.year, now.month, now.day);
+
+    if (_incidentDateFilter == 'Hôm nay') {
+      return itemDate.isAtSameMomentAs(today);
+    } else if (_incidentDateFilter == '7 ngày qua') {
+      final sevenDaysAgo = today.subtract(const Duration(days: 7));
+      return (itemDate.isAfter(sevenDaysAgo) || itemDate.isAtSameMomentAs(sevenDaysAgo)) &&
+          (itemDate.isBefore(today) || itemDate.isAtSameMomentAs(today));
+    } else if (_incidentDateFilter == 'Tháng này') {
+      return itemDate.year == now.year && itemDate.month == now.month;
+    } else if (_incidentDateFilter.startsWith('Tùy chọn') && _customDateRange != null) {
+      final start = DateTime(_customDateRange!.start.year, _customDateRange!.start.month, _customDateRange!.start.day);
+      final end = DateTime(_customDateRange!.end.year, _customDateRange!.end.month, _customDateRange!.end.day);
+      return (itemDate.isAfter(start) || itemDate.isAtSameMomentAs(start)) &&
+          (itemDate.isBefore(end) || itemDate.isAtSameMomentAs(end));
+    }
+    return true;
+  }
+
   List<dynamic> get _filteredIncidents {
-    if (_selectedFilter == 'Tất cả') return _incidents;
-    return _incidents.where((i) => (i['trang_thai'] ?? '') == _selectedFilter).toList();
+    return _incidents.where((item) {
+      // 1. Lọc theo trạng thái
+      if (_selectedFilter != 'Tất cả' && (item['trang_thai'] ?? '') != _selectedFilter) {
+        return false;
+      }
+
+      final room = item['phong_hoc'];
+      final roomNum = (room != null ? (room['so_phong_day_du'] ?? room['so_phong'] ?? '') : '').toString().toLowerCase();
+      final pureRoom = (room != null ? (room['so_phong'] ?? '') : '').toString().toLowerCase();
+      final ticketCode = (item['ma_phieu_su_co'] ?? '').toString().toLowerCase();
+      final desc = (item['mo_ta_hu_hong'] ?? '').toString().toLowerCase();
+      final reporterName = (item['nguoi_bao_cao_info'] != null ? (item['nguoi_bao_cao_info']['ho_va_ten'] ?? '') : '').toString().toLowerCase();
+
+      // 2. Tìm kiếm theo số phòng, mã phiếu, mô tả, người báo
+      final q = _incidentSearchQuery.trim().toLowerCase();
+      if (q.isNotEmpty) {
+        final matches = roomNum.contains(q) ||
+            pureRoom.contains(q) ||
+            ticketCode.contains(q) ||
+            desc.contains(q) ||
+            reporterName.contains(q);
+        if (!matches) return false;
+      }
+
+      // 3. Lọc theo Khu
+      if (_incidentCampusFilter != 'Tất cả') {
+        final campusName = (room != null ? (room['ten_khu'] ?? '') : '').toString().toLowerCase();
+        final cFilter = _incidentCampusFilter.toLowerCase();
+        if (!campusName.contains(cFilter) && !cFilter.contains(campusName)) {
+          return false;
+        }
+      }
+
+      // 4. Lọc theo Tòa
+      if (_incidentBuildingFilter != 'Tất cả') {
+        final bName = (room != null ? (room['ten_day_nha'] ?? '') : '').toString().toLowerCase();
+        final maToa = (room != null ? (room['ma_toa'] ?? '') : '').toString().toLowerCase();
+        final bFilter = _incidentBuildingFilter.toLowerCase();
+        final matchesB = bName.contains(bFilter) ||
+            maToa == bFilter ||
+            'tòa $maToa' == bFilter ||
+            bFilter.contains(maToa);
+        if (!matchesB) return false;
+      }
+
+      // 5. Lọc theo Ngày tháng
+      final dateStr = (item['ngay_gui_bao_cao'] ?? '').toString();
+      if (!_matchesDateFilter(dateStr)) {
+        return false;
+      }
+
+      return true;
+    }).toList();
   }
 
   List<dynamic> get _filteredRooms {
@@ -114,14 +200,27 @@ class _AdminScreenState extends State<AdminScreen> {
       final matchesSearch = q.isEmpty || name.contains(q) || qr.contains(q);
       if (!matchesSearch) return false;
 
-      if (_roomBuildingFilter == 'Tất cả') return true;
-      final buildingName = _getRoomBuildingName(r).toLowerCase();
-      final maToa = (r['ma_toa'] ?? '').toString().toLowerCase();
-      final filterLower = _roomBuildingFilter.toLowerCase();
+      // 1. Lọc theo Khuôn viên (Khu I, Khu II, Khu Hòa Ân...)
+      if (_roomCampusFilter != 'Tất cả') {
+        final campus = _getRoomCampusName(r).toLowerCase();
+        final cFilter = _roomCampusFilter.toLowerCase();
+        final matchesCampus = campus.contains(cFilter) || cFilter.contains(campus);
+        if (!matchesCampus) return false;
+      }
 
-      return buildingName.contains(filterLower) ||
-             maToa == filterLower ||
-             'tòa $maToa' == filterLower;
+      // 2. Lọc theo Tòa nhà (Tòa B21, Tòa D71...)
+      if (_roomBuildingFilter != 'Tất cả') {
+        final buildingName = _getRoomBuildingName(r).toLowerCase();
+        final maToa = (r['ma_toa'] ?? '').toString().toLowerCase();
+        final filterLower = _roomBuildingFilter.toLowerCase();
+
+        final matchesBuilding = buildingName.contains(filterLower) ||
+            maToa == filterLower ||
+            'tòa $maToa' == filterLower;
+        if (!matchesBuilding) return false;
+      }
+
+      return true;
     }).toList();
   }
 
@@ -464,6 +563,10 @@ class _AdminScreenState extends State<AdminScreen> {
     final boardCtrl = TextEditingController(text: '1');
     final deskCtrl = TextEditingController(text: '20');
     final teacherDeskCtrl = TextEditingController(text: '1');
+    final pcCtrl = TextEditingController(text: '0');
+    final kbCtrl = TextEditingController(text: '0');
+    final cpuCtrl = TextEditingController(text: '0');
+    final mouseCtrl = TextEditingController(text: '0');
     bool isSaving = false;
 
     showDialog(
@@ -592,7 +695,17 @@ class _AdminScreenState extends State<AdminScreen> {
                         DropdownMenuItem(value: 'Hội trường', child: Text('Hội trường / Phòng họp')),
                       ],
                       onChanged: (val) {
-                        if (val != null) setDlgState(() => selectedRoomType = val);
+                        if (val != null) {
+                          setDlgState(() {
+                            selectedRoomType = val;
+                            if (val == 'Thực hành Máy tính' && pcCtrl.text == '0') {
+                              pcCtrl.text = '40';
+                              kbCtrl.text = '40';
+                              cpuCtrl.text = '40';
+                              mouseCtrl.text = '40';
+                            }
+                          });
+                        }
                       },
                     ),
 
@@ -706,6 +819,69 @@ class _AdminScreenState extends State<AdminScreen> {
                         ),
                       ],
                     ),
+
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.computer, size: 16, color: Color(0xFF0D47A1)),
+                              SizedBox(width: 6),
+                              Text('Thiết bị Thực Hành (Máy tính, Phím, CPU, Chuột):',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0D47A1))),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: pcCtrl,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: '💻 Máy tính', border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: TextField(
+                                  controller: kbCtrl,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: '⌨️ Bàn phím', border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: cpuCtrl,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: '🖥️ Thùng CPU', border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: TextField(
+                                  controller: mouseCtrl,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: '🖱️ Chuột', border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -738,6 +914,10 @@ class _AdminScreenState extends State<AdminScreen> {
                           boardCount: int.tryParse(boardCtrl.text) ?? 1,
                           studentDeskCount: int.tryParse(deskCtrl.text) ?? 20,
                           teacherDeskCount: int.tryParse(teacherDeskCtrl.text) ?? 1,
+                          computerCount: int.tryParse(pcCtrl.text) ?? 0,
+                          keyboardCount: int.tryParse(kbCtrl.text) ?? 0,
+                          cpuCount: int.tryParse(cpuCtrl.text) ?? 0,
+                          mouseCount: int.tryParse(mouseCtrl.text) ?? 0,
                         );
                         setDlgState(() => isSaving = false);
 
@@ -1055,6 +1235,10 @@ class _AdminScreenState extends State<AdminScreen> {
     final hdmiCtrl = TextEditingController(text: '${room['so_cong_hdmi'] ?? 1}');
     final boardCtrl = TextEditingController(text: '${room['so_bang_viet'] ?? 1}');
     final deskCtrl = TextEditingController(text: '${room['so_ban_sinh_vien'] ?? 20}');
+    final pcCtrl = TextEditingController(text: '${room['so_may_tinh'] ?? 0}');
+    final kbCtrl = TextEditingController(text: '${room['so_ban_phim'] ?? 0}');
+    final cpuCtrl = TextEditingController(text: '${room['so_cpu'] ?? 0}');
+    final mouseCtrl = TextEditingController(text: '${room['so_chuot'] ?? 0}');
     bool isSaving = false;
 
     showDialog(
@@ -1143,6 +1327,70 @@ class _AdminScreenState extends State<AdminScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+
+                // Hàng 4: Thiết bị Phòng Thực Hành Máy Tính
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.computer, size: 18, color: Color(0xFF0D47A1)),
+                          SizedBox(width: 6),
+                          Text('Thiết bị Thực Hành (Máy tính, Bàn phím, CPU, Chuột):',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF0D47A1))),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: pcCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: '💻 Máy tính / Màn', border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: kbCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: '⌨️ Bàn phím', border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: cpuCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: '🖥️ CPU / Case', border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: mouseCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: '🖱️ Chuột máy tính', border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -1165,6 +1413,11 @@ class _AdminScreenState extends State<AdminScreen> {
                         tvCount: int.tryParse(tvCtrl.text) ?? 0,
                         hdmiCount: int.tryParse(hdmiCtrl.text) ?? 1,
                         boardCount: int.tryParse(boardCtrl.text) ?? 1,
+                        studentDeskCount: int.tryParse(deskCtrl.text) ?? 20,
+                        computerCount: int.tryParse(pcCtrl.text) ?? 0,
+                        keyboardCount: int.tryParse(kbCtrl.text) ?? 0,
+                        cpuCount: int.tryParse(cpuCtrl.text) ?? 0,
+                        mouseCount: int.tryParse(mouseCtrl.text) ?? 0,
                       );
                       setDlgState(() => isSaving = false);
 
@@ -1302,10 +1555,14 @@ class _AdminScreenState extends State<AdminScreen> {
   // ==============================================================
   Widget _buildRoomManagementTab() {
     final filtered = _filteredRooms;
-    final totalRooms = _rooms.length;
-    final totalAc = _rooms.fold<int>(0, (sum, r) => sum + (int.tryParse('${r['so_may_lanh']}') ?? 0));
-    final totalFan = _rooms.fold<int>(0, (sum, r) => sum + (int.tryParse('${r['so_quat']}') ?? 0));
-    final totalTv = _rooms.fold<int>(0, (sum, r) => sum + (int.tryParse('${r['so_tivi']}') ?? 0));
+    final totalRooms = filtered.length;
+    final totalPc = filtered.fold<int>(0, (sum, r) => sum + (int.tryParse('${r['so_may_tinh']}') ?? 0));
+    final totalCpu = filtered.fold<int>(0, (sum, r) => sum + (int.tryParse('${r['so_cpu']}') ?? 0));
+    final totalKb = filtered.fold<int>(0, (sum, r) => sum + (int.tryParse('${r['so_ban_phim']}') ?? 0));
+    final totalMouse = filtered.fold<int>(0, (sum, r) => sum + (int.tryParse('${r['so_chuot']}') ?? 0));
+    final totalAc = filtered.fold<int>(0, (sum, r) => sum + (int.tryParse('${r['so_may_lanh']}') ?? 0));
+    final totalFan = filtered.fold<int>(0, (sum, r) => sum + (int.tryParse('${r['so_quat']}') ?? 0));
+    final totalTv = filtered.fold<int>(0, (sum, r) => sum + (int.tryParse('${r['so_tivi']}') ?? 0));
 
     return RefreshIndicator(
       onRefresh: _loadAllData,
@@ -1404,17 +1661,60 @@ class _AdminScreenState extends State<AdminScreen> {
 
             const SizedBox(height: 14),
 
-            // 4 Thẻ thống kê tổng quan thiết bị
+            // Tiêu đề thống kê kèm nút Báo Cáo Chi Tiết Từng Khu / Tòa
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildStatMiniCard('Tổng phòng', '$totalRooms', Icons.door_front_door, Colors.indigo),
-                const SizedBox(width: 8),
-                _buildStatMiniCard('Máy lạnh', '$totalAc', Icons.ac_unit, Colors.cyan.shade800),
-                const SizedBox(width: 8),
-                _buildStatMiniCard('Quạt gió', '$totalFan', Icons.mode_fan_off_outlined, Colors.teal),
-                const SizedBox(width: 8),
-                _buildStatMiniCard('TV/Chiếu', '$totalTv', Icons.tv, Colors.deepPurple),
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.analytics, size: 18, color: Color(0xFF0D47A1)),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Số lượng thiết bị (${_roomCampusFilter == 'Tất cả' && _roomBuildingFilter == 'Tất cả' ? 'Toàn trường' : '${_roomCampusFilter != 'Tất cả' ? _roomCampusFilter : ''} ${_roomBuildingFilter != 'Tất cả' ? '• $_roomBuildingFilter' : ''}'.trim()}):',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0D47A1)),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: const Color(0xFF0D47A1),
+                  ),
+                  icon: const Icon(Icons.table_chart, size: 16),
+                  label: const Text('Báo Cáo Từng Khu / Tòa', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  onPressed: _showEquipmentBreakdownDialog,
+                ),
               ],
+            ),
+            const SizedBox(height: 6),
+
+            // Thẻ thống kê tổng quan thiết bị theo bộ lọc (Hỗ trợ cuộn ngang)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildStatMiniCard('Tổng phòng', '$totalRooms', Icons.door_front_door, Colors.indigo),
+                  const SizedBox(width: 8),
+                  _buildStatMiniCard('Máy tính PC', '$totalPc', Icons.computer, Colors.blue.shade900),
+                  const SizedBox(width: 8),
+                  _buildStatMiniCard('Thùng CPU', '$totalCpu', Icons.memory, Colors.deepPurple),
+                  const SizedBox(width: 8),
+                  _buildStatMiniCard('Bàn phím', '$totalKb', Icons.keyboard, Colors.purple),
+                  const SizedBox(width: 8),
+                  _buildStatMiniCard('Chuột máy', '$totalMouse', Icons.mouse, Colors.amber.shade900),
+                  const SizedBox(width: 8),
+                  _buildStatMiniCard('Máy lạnh', '$totalAc', Icons.ac_unit, Colors.cyan.shade800),
+                  const SizedBox(width: 8),
+                  _buildStatMiniCard('Quạt gió', '$totalFan', Icons.mode_fan_off_outlined, Colors.teal),
+                  const SizedBox(width: 8),
+                  _buildStatMiniCard('TV/Chiếu', '$totalTv', Icons.tv, Colors.deepPurple),
+                ],
+              ),
             ),
 
             const SizedBox(height: 14),
@@ -1439,18 +1739,57 @@ class _AdminScreenState extends State<AdminScreen> {
 
             const SizedBox(height: 10),
 
-            // Bộ lọc chip theo Tòa lấy động từ cơ sở dữ liệu
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildBuildingFilterChip('Tất cả'),
-                  ..._buildings.map<Widget>((b) {
-                    final code = b['ma_toa'] ?? '';
-                    return _buildBuildingFilterChip('Tòa $code');
-                  }),
-                ],
-              ),
+            // 1. BỘ LỌC THEO KHUÔN VIÊN (KHU I, KHU II, KHU HÒA ÂN...)
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6)),
+                  child: const Text('🏛️ Khu:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0D47A1))),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildCampusFilterChip('Tất cả'),
+                        ..._campuses.map<Widget>((c) {
+                          final name = (c['ma_viet_tat'] ?? c['ten_khuon_vien'] ?? '').toString();
+                          return _buildCampusFilterChip(name);
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            // 2. BỘ LỌC THEO TÒA NHÀ (TÒA B21, TÒA D71...)
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+                  child: const Text('🏢 Tòa:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0D47A1))),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildBuildingFilterChip('Tất cả'),
+                        ..._buildings.map<Widget>((b) {
+                          final code = b['ma_toa'] ?? '';
+                          return _buildBuildingFilterChip('Tòa $code');
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
 
             const SizedBox(height: 12),
@@ -1489,6 +1828,32 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  Widget _buildCampusFilterChip(String label) {
+    final isSelected = _roomCampusFilter == label;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (val) {
+          setState(() {
+            _roomCampusFilter = label;
+          });
+        },
+        selectedColor: Colors.indigo.shade800,
+        checkmarkColor: Colors.white,
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.indigo.shade900,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          fontSize: 12,
+        ),
+        backgroundColor: Colors.white,
+        side: BorderSide(color: isSelected ? Colors.indigo.shade800 : Colors.indigo.shade100),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      ),
+    );
+  }
+
   Widget _buildBuildingFilterChip(String label) {
     final isSelected = _roomBuildingFilter == label;
     return Padding(
@@ -1515,34 +1880,163 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  void _showEquipmentBreakdownDialog() {
+    // Nhóm danh sách phòng theo Tòa nhà & Khu
+    final Map<String, List<dynamic>> groupedByBuilding = {};
+    for (final r in _rooms) {
+      final buildingName = '${_getRoomBuildingName(r)} (${_getRoomCampusName(r)})';
+      groupedByBuilding.putIfAbsent(buildingName, () => []).add(r);
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Container(
+          width: 760,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.table_chart, color: Color(0xFF0D47A1), size: 24),
+                      SizedBox(width: 8),
+                      Text('BÁO CÁO THIẾT BỊ THEO TỪNG TÒA & KHU',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0D47A1))),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const Divider(height: 16),
+              const Text('Số lượng thiết bị được phân bổ thực tế theo từng tòa nhà và khuôn viên:',
+                  style: TextStyle(fontSize: 12, color: Colors.black87)),
+              const SizedBox(height: 12),
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      headingRowColor: WidgetStateProperty.all(Colors.blue.shade50),
+                      columnSpacing: 14,
+                      dataRowMinHeight: 38,
+                      dataRowMaxHeight: 46,
+                      columns: const [
+                        DataColumn(label: Text('Tòa & Khu', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('Số phòng', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('💻 PC', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('🖥️ CPU', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('⌨️ Phím', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('🖱️ Chuột', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('❄️ Lạnh', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('🌀 Quạt', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        DataColumn(label: Text('📺 TV', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                      ],
+                      rows: [
+                        ...groupedByBuilding.entries.map((entry) {
+                          final bName = entry.key;
+                          final bRooms = entry.value;
+                          final bPc = bRooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_may_tinh']}') ?? 0));
+                          final bCpu = bRooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_cpu']}') ?? 0));
+                          final bKb = bRooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_ban_phim']}') ?? 0));
+                          final bMouse = bRooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_chuot']}') ?? 0));
+                          final bAc = bRooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_may_lanh']}') ?? 0));
+                          final bFan = bRooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_quat']}') ?? 0));
+                          final bTv = bRooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_tivi']}') ?? 0));
+
+                          return DataRow(
+                            cells: [
+                              DataCell(Text(bName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
+                              DataCell(Text('${bRooms.length} phòng', style: const TextStyle(fontSize: 12))),
+                              DataCell(Text(bPc > 0 ? '$bPc' : '-', style: TextStyle(fontSize: 12, fontWeight: bPc > 0 ? FontWeight.bold : FontWeight.normal, color: bPc > 0 ? Colors.blue.shade900 : Colors.grey))),
+                              DataCell(Text(bCpu > 0 ? '$bCpu' : '-', style: TextStyle(fontSize: 12, fontWeight: bCpu > 0 ? FontWeight.bold : FontWeight.normal))),
+                              DataCell(Text(bKb > 0 ? '$bKb' : '-', style: const TextStyle(fontSize: 12))),
+                              DataCell(Text(bMouse > 0 ? '$bMouse' : '-', style: const TextStyle(fontSize: 12))),
+                              DataCell(Text('$bAc', style: const TextStyle(fontSize: 12))),
+                              DataCell(Text('$bFan', style: const TextStyle(fontSize: 12))),
+                              DataCell(Text('$bTv', style: const TextStyle(fontSize: 12))),
+                            ],
+                          );
+                        }),
+                        // Hàng Tổng Cộng Toàn Trường
+                        DataRow(
+                          color: WidgetStateProperty.all(Colors.amber.shade50),
+                          cells: [
+                            const DataCell(Text('TỔNG TOÀN TRƯỜNG', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0D47A1)))),
+                            DataCell(Text('${_rooms.length} phòng', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                            DataCell(Text('${_rooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_may_tinh']}') ?? 0))}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0D47A1)))),
+                            DataCell(Text('${_rooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_cpu']}') ?? 0))}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                            DataCell(Text('${_rooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_ban_phim']}') ?? 0))}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                            DataCell(Text('${_rooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_chuot']}') ?? 0))}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                            DataCell(Text('${_rooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_may_lanh']}') ?? 0))}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                            DataCell(Text('${_rooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_quat']}') ?? 0))}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                            DataCell(Text('${_rooms.fold<int>(0, (s, r) => s + (int.tryParse('${r['so_tivi']}') ?? 0))}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0D47A1),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Đóng'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildStatMiniCard(String label, String value, IconData icon, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade200),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 4, offset: const Offset(0, 2)),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
-            ),
-            Text(
-              label,
-              style: TextStyle(fontSize: 10.5, color: Colors.grey[600]),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+    return Container(
+      width: 98,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 4, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 10.5, color: Colors.grey[600]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -1655,6 +2149,14 @@ class _AdminScreenState extends State<AdminScreen> {
                     spacing: 8,
                     runSpacing: 6,
                     children: [
+                      if ((int.tryParse('${r['so_may_tinh']}') ?? 0) > 0)
+                        _buildEquipChip('💻 Máy tính', '${r['so_may_tinh']} bộ', Colors.indigo.shade50, Colors.indigo.shade800),
+                      if ((int.tryParse('${r['so_ban_phim']}') ?? 0) > 0)
+                        _buildEquipChip('⌨️ Bàn phím', '${r['so_ban_phim']} cái', Colors.deepPurple.shade50, Colors.deepPurple.shade800),
+                      if ((int.tryParse('${r['so_cpu']}') ?? 0) > 0)
+                        _buildEquipChip('🖥️ CPU', '${r['so_cpu']} cái', Colors.blueGrey.shade50, Colors.blueGrey.shade800),
+                      if ((int.tryParse('${r['so_chuot']}') ?? 0) > 0)
+                        _buildEquipChip('🖱️ Chuột', '${r['so_chuot']} con', Colors.amber.shade50, Colors.amber.shade900),
                       _buildEquipChip('❄️ Máy lạnh', '${r['so_may_lanh'] ?? 0} cái', Colors.cyan.shade50, Colors.cyan.shade800),
                       _buildEquipChip('🌀 Quạt', '${r['so_quat'] ?? 0} cái', Colors.teal.shade50, Colors.teal.shade800),
                       _buildEquipChip('📺 TV/Chiếu', '${r['so_tivi'] ?? 0} cái', Colors.purple.shade50, Colors.purple.shade800),
@@ -2000,27 +2502,197 @@ class _AdminScreenState extends State<AdminScreen> {
               },
             ),
 
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
+
+            // 1. THANH TÌM KIẾM PHÒNG & SỰ CỐ
+            TextField(
+              controller: _incidentSearchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Tìm theo số phòng (VD: B21.102, 102...), mã phiếu, mô tả...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _incidentSearchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _incidentSearchCtrl.clear();
+                          setState(() => _incidentSearchQuery = '');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                isDense: true,
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              onChanged: (val) {
+                setState(() => _incidentSearchQuery = val);
+              },
+            ),
+
+            const SizedBox(height: 10),
+
+            // 2. LỌC THEO NGÀY THÁNG
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6)),
+                  child: const Text('📅 Ngày:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Colors.deepOrange)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildIncidentDateChip('Tất cả'),
+                        _buildIncidentDateChip('Hôm nay'),
+                        _buildIncidentDateChip('7 ngày qua'),
+                        _buildIncidentDateChip('Tháng này'),
+                        _buildIncidentDateCustomChip(),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // 3. LỌC THEO KHU
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6)),
+                  child: const Text('🏛️ Khu:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0D47A1))),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildIncidentCampusChip('Tất cả'),
+                        ..._campuses.map<Widget>((c) {
+                          final name = (c['ma_viet_tat'] ?? c['ten_khuon_vien'] ?? '').toString();
+                          return _buildIncidentCampusChip(name);
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // 4. LỌC THEO TÒA
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+                  child: const Text('🏢 Tòa:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0D47A1))),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildIncidentBuildingChip('Tất cả'),
+                        ..._buildings.map<Widget>((b) {
+                          final code = b['ma_toa'] ?? '';
+                          return _buildIncidentBuildingChip('Tòa $code');
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            if (_selectedFilter != 'Tất cả' ||
+                _incidentSearchQuery.isNotEmpty ||
+                _incidentCampusFilter != 'Tất cả' ||
+                _incidentBuildingFilter != 'Tất cả' ||
+                _incidentDateFilter != 'Tất cả') ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: Colors.red.shade700,
+                  ),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Đặt lại toàn bộ bộ lọc', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    setState(() {
+                      _selectedFilter = 'Tất cả';
+                      _incidentSearchQuery = '';
+                      _incidentSearchCtrl.clear();
+                      _incidentCampusFilter = 'Tất cả';
+                      _incidentBuildingFilter = 'Tất cả';
+                      _incidentDateFilter = 'Tất cả';
+                      _customDateRange = null;
+                    });
+                  },
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 12),
 
             // Danh sách sự cố
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Text('Danh sách sự cố', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: const Color(0xFF0D47A1).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                      child: Text(
-                        _selectedFilter == 'Tất cả' ? 'Toàn bộ' : _selectedFilter,
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1)),
+                Expanded(
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 6,
+                    children: [
+                      const Text('Danh sách sự cố', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: const Color(0xFF0D47A1).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                        child: Text(
+                          _selectedFilter == 'Tất cả' ? 'Toàn bộ' : _selectedFilter,
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1)),
+                        ),
                       ),
-                    ),
-                  ],
+                      if (_incidentDateFilter != 'Tất cả')
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(10)),
+                          child: Text(
+                            '📅 $_incidentDateFilter',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.deepOrange.shade900),
+                          ),
+                        ),
+                      if (_incidentCampusFilter != 'Tất cả')
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(10)),
+                          child: Text(
+                            '🏛️ $_incidentCampusFilter',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
+                          ),
+                        ),
+                      if (_incidentBuildingFilter != 'Tất cả')
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(10)),
+                          child: Text(
+                            '🏢 $_incidentBuildingFilter',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-                Text('${filtered.length} phiếu', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text('${filtered.length} phiếu', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
               ],
             ),
             const SizedBox(height: 8),
@@ -2170,6 +2842,8 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   void _showZoomImage(BuildContext context, String url) {
+    final imgUrl = ApiService.formatImageUrl(url);
+    if (imgUrl.isEmpty) return;
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -2182,7 +2856,7 @@ class _AdminScreenState extends State<AdminScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  url,
+                  imgUrl,
                   fit: BoxFit.contain,
                   errorBuilder: (c, e, s) => Container(
                     padding: const EdgeInsets.all(24),
@@ -2239,7 +2913,7 @@ class _AdminScreenState extends State<AdminScreen> {
             separatorBuilder: (c, i) => const SizedBox(width: 8),
             itemBuilder: (context, idx) {
               final raw = list[idx];
-              final imgUrl = raw is String ? raw : (raw['duong_dan_anh'] ?? '');
+              final imgUrl = ApiService.formatImageUrl(raw);
               return InkWell(
                 onTap: () => _showZoomImage(context, imgUrl),
                 child: Container(
@@ -2360,6 +3034,141 @@ class _AdminScreenState extends State<AdminScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildIncidentDateChip(String label) {
+    final isSelected = _incidentDateFilter == label;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (val) {
+          setState(() {
+            _incidentDateFilter = label;
+            if (label != 'Tùy chọn') _customDateRange = null;
+          });
+        },
+        selectedColor: Colors.deepOrange,
+        checkmarkColor: Colors.white,
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.black87,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          fontSize: 12,
+        ),
+        backgroundColor: Colors.white,
+        side: BorderSide(color: isSelected ? Colors.deepOrange : Colors.grey.shade300),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      ),
+    );
+  }
+
+  Widget _buildIncidentDateCustomChip() {
+    final isCustom = _incidentDateFilter.startsWith('Tùy chọn');
+    String label = 'Tùy chọn ngày...';
+    if (isCustom && _customDateRange != null) {
+      final s = _customDateRange!.start;
+      final e = _customDateRange!.end;
+      label = '${s.day}/${s.month} - ${e.day}/${e.month}';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        avatar: const Icon(Icons.date_range, size: 14),
+        label: Text(label),
+        selected: isCustom,
+        onSelected: (val) async {
+          final picked = await showDateRangePicker(
+            context: context,
+            firstDate: DateTime(2020),
+            lastDate: DateTime(2030),
+            initialDateRange: _customDateRange ??
+                DateTimeRange(start: DateTime.now().subtract(const Duration(days: 7)), end: DateTime.now()),
+            builder: (context, child) {
+              return Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: const ColorScheme.light(
+                    primary: Color(0xFF0D47A1),
+                    onPrimary: Colors.white,
+                    onSurface: Colors.black87,
+                  ),
+                ),
+                child: child!,
+              );
+            },
+          );
+          if (picked != null) {
+            setState(() {
+              _customDateRange = picked;
+              _incidentDateFilter = 'Tùy chọn';
+            });
+          }
+        },
+        selectedColor: Colors.deepOrange,
+        checkmarkColor: Colors.white,
+        labelStyle: TextStyle(
+          color: isCustom ? Colors.white : Colors.black87,
+          fontWeight: isCustom ? FontWeight.bold : FontWeight.normal,
+          fontSize: 12,
+        ),
+        backgroundColor: Colors.white,
+        side: BorderSide(color: isCustom ? Colors.deepOrange : Colors.grey.shade300),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      ),
+    );
+  }
+
+  Widget _buildIncidentCampusChip(String label) {
+    final isSelected = _incidentCampusFilter == label;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (val) {
+          setState(() {
+            _incidentCampusFilter = label;
+          });
+        },
+        selectedColor: Colors.indigo.shade800,
+        checkmarkColor: Colors.white,
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.black87,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          fontSize: 12,
+        ),
+        backgroundColor: Colors.white,
+        side: BorderSide(color: isSelected ? Colors.indigo.shade800 : Colors.indigo.shade100),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      ),
+    );
+  }
+
+  Widget _buildIncidentBuildingChip(String label) {
+    final isSelected = _incidentBuildingFilter == label;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (val) {
+          setState(() {
+            _incidentBuildingFilter = label;
+          });
+        },
+        selectedColor: const Color(0xFF0D47A1),
+        checkmarkColor: Colors.white,
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.black87,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          fontSize: 12,
+        ),
+        backgroundColor: Colors.white,
+        side: BorderSide(color: isSelected ? const Color(0xFF0D47A1) : Colors.grey.shade300),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       ),
     );
   }

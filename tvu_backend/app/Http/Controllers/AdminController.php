@@ -250,6 +250,10 @@ class AdminController extends Controller
             'so_bang_viet'    => (int) $request->input('so_bang_viet', 1),
             'so_ban_sinh_vien'=> (int) $request->input('so_ban_sinh_vien', 20),
             'so_ban_giao_vien'=> (int) $request->input('so_ban_giao_vien', 1),
+            'so_may_tinh'     => (int) $request->input('so_may_tinh', 0),
+            'so_ban_phim'     => (int) $request->input('so_ban_phim', 0),
+            'so_cpu'          => (int) $request->input('so_cpu', 0),
+            'so_chuot'        => (int) $request->input('so_chuot', 0),
             'dang_su_dung'    => 1,
         ]);
 
@@ -295,6 +299,10 @@ class AdminController extends Controller
         $room->so_bang_viet     = $request->input('so_bang_viet', $room->so_bang_viet);
         $room->so_ban_sinh_vien = $request->input('so_ban_sinh_vien', $room->so_ban_sinh_vien);
         $room->so_ban_giao_vien = $request->input('so_ban_giao_vien', $room->so_ban_giao_vien);
+        $room->so_may_tinh      = $request->input('so_may_tinh', $room->so_may_tinh ?? 0);
+        $room->so_ban_phim      = $request->input('so_ban_phim', $room->so_ban_phim ?? 0);
+        $room->so_cpu           = $request->input('so_cpu', $room->so_cpu ?? 0);
+        $room->so_chuot         = $request->input('so_chuot', $room->so_chuot ?? 0);
         $room->save();
 
         if ($request->wantsJson() || $request->is('api/*')) {
