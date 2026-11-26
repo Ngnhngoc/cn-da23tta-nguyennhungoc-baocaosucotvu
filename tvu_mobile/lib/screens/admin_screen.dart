@@ -109,6 +109,150 @@ class _AdminScreenState extends State<AdminScreen> {
     return 'Khu I';
   }
 
+  String _getBuildingCampus(Map<String, dynamic> b) {
+    if (b['khuon_vien'] != null && b['khuon_vien'] is Map) {
+      final kv = b['khuon_vien'];
+      return (kv['ma_viet_tat'] ?? kv['ten_khuon_vien'] ?? 'Khu I').toString().trim();
+    }
+    final maToa = (b['ma_toa'] ?? '').toString().toUpperCase();
+    if (maToa.startsWith('D') || maToa.startsWith('B')) return 'Khu I';
+    if (maToa.startsWith('A') || maToa.startsWith('C')) return 'Khu II';
+    return 'Khu I';
+  }
+
+  List<String> get _uniqueCampusList {
+    final Set<String> list = {};
+    for (final c in _campuses) {
+      if (c is Map) {
+        final name = (c['ma_viet_tat'] ?? c['ten_khuon_vien'] ?? '').toString().trim();
+        if (name.isNotEmpty) list.add(name);
+      }
+    }
+    for (final b in _buildings) {
+      if (b is Map<String, dynamic>) {
+        final name = _getBuildingCampus(b);
+        if (name.isNotEmpty) list.add(name);
+      }
+    }
+    if (list.isEmpty) return ['Khu I', 'Khu II'];
+    final sorted = list.toList()..sort();
+    return sorted;
+  }
+
+  List<dynamic> get _incidentAvailableBuildings {
+    if (_incidentCampusFilter == 'Tất cả') {
+      return _buildings;
+    }
+    return _buildings.where((b) {
+      if (b is! Map<String, dynamic>) return false;
+      final campus = _getBuildingCampus(b).toLowerCase();
+      final filter = _incidentCampusFilter.toLowerCase();
+      return campus == filter || campus.contains(filter) || filter.contains(campus);
+    }).toList();
+  }
+
+  List<dynamic> get _roomAvailableBuildings {
+    if (_roomCampusFilter == 'Tất cả') {
+      return _buildings;
+    }
+    return _buildings.where((b) {
+      if (b is! Map<String, dynamic>) return false;
+      final campus = _getBuildingCampus(b).toLowerCase();
+      final filter = _roomCampusFilter.toLowerCase();
+      return campus == filter || campus.contains(filter) || filter.contains(campus);
+    }).toList();
+  }
+
+  bool get _hasActiveIncidentFilters =>
+      _incidentSearchQuery.isNotEmpty ||
+      _incidentDateFilter != 'Tất cả' ||
+      _incidentCampusFilter != 'Tất cả' ||
+      _incidentBuildingFilter != 'Tất cả';
+
+  int get _activeIncidentFilterCount {
+    int c = 0;
+    if (_incidentSearchQuery.isNotEmpty) c++;
+    if (_incidentDateFilter != 'Tất cả') c++;
+    if (_incidentCampusFilter != 'Tất cả') c++;
+    if (_incidentBuildingFilter != 'Tất cả') c++;
+    return c;
+  }
+
+  void _resetIncidentFilters() {
+    _incidentSearchCtrl.clear();
+    setState(() {
+      _incidentSearchQuery = '';
+      _incidentDateFilter = 'Tất cả';
+      _customDateRange = null;
+      _incidentCampusFilter = 'Tất cả';
+      _incidentBuildingFilter = 'Tất cả';
+    });
+  }
+
+  bool get _hasActiveRoomFilters =>
+      _roomSearchQuery.isNotEmpty ||
+      _roomCampusFilter != 'Tất cả' ||
+      _roomBuildingFilter != 'Tất cả' ||
+      _roomStatusFilter != 'Tất cả';
+
+  int get _activeRoomFilterCount {
+    int c = 0;
+    if (_roomSearchQuery.isNotEmpty) c++;
+    if (_roomCampusFilter != 'Tất cả') c++;
+    if (_roomBuildingFilter != 'Tất cả') c++;
+    if (_roomStatusFilter != 'Tất cả') c++;
+    return c;
+  }
+
+  void _resetRoomFilters() {
+    setState(() {
+      _roomSearchQuery = '';
+      _roomCampusFilter = 'Tất cả';
+      _roomBuildingFilter = 'Tất cả';
+      _roomStatusFilter = 'Tất cả';
+    });
+  }
+
+  Widget _buildFilterRow({
+    required String icon,
+    required String title,
+    required Color badgeColor,
+    required Color badgeTextColor,
+    required Widget child,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 76,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+            decoration: BoxDecoration(
+              color: badgeColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: badgeTextColor.withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(icon, style: const TextStyle(fontSize: 12)),
+                const SizedBox(width: 4),
+                Text(
+                  title,
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: badgeTextColor),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+
   bool _matchesDateFilter(String? dateStr) {
     if (_incidentDateFilter == 'Tất cả') return true;
     if (dateStr == null || dateStr.isEmpty) return false;
@@ -164,7 +308,7 @@ class _AdminScreenState extends State<AdminScreen> {
 
       // 3. Lọc theo Khu
       if (_incidentCampusFilter != 'Tất cả') {
-        final campusName = (room != null ? (room['ten_khu'] ?? '') : '').toString().toLowerCase();
+        final campusName = room != null ? _getRoomCampusName(room is Map<String, dynamic> ? room : {}).toLowerCase() : '';
         final cFilter = _incidentCampusFilter.toLowerCase();
         if (!campusName.contains(cFilter) && !cFilter.contains(campusName)) {
           return false;
@@ -173,13 +317,13 @@ class _AdminScreenState extends State<AdminScreen> {
 
       // 4. Lọc theo Tòa
       if (_incidentBuildingFilter != 'Tất cả') {
-        final bName = (room != null ? (room['ten_day_nha'] ?? '') : '').toString().toLowerCase();
-        final maToa = (room != null ? (room['ma_toa'] ?? '') : '').toString().toLowerCase();
-        final bFilter = _incidentBuildingFilter.toLowerCase();
+        final bName = room != null ? _getRoomBuildingName(room is Map<String, dynamic> ? room : {}).toLowerCase() : '';
+        final maToa = (room != null ? (room['ma_toa'] ?? (room['day_nha'] != null ? room['day_nha']['ma_toa'] : '')) : '').toString().toLowerCase();
+        final bFilter = _incidentBuildingFilter.toLowerCase().replaceAll('tòa', '').trim();
         final matchesB = bName.contains(bFilter) ||
             maToa == bFilter ||
-            'tòa $maToa' == bFilter ||
-            bFilter.contains(maToa);
+            'tòa $maToa' == _incidentBuildingFilter.toLowerCase() ||
+            bName.contains(_incidentBuildingFilter.toLowerCase());
         if (!matchesB) return false;
       }
 
@@ -212,12 +356,13 @@ class _AdminScreenState extends State<AdminScreen> {
       // 2. Lọc theo Tòa nhà (Tòa B21, Tòa D71...)
       if (_roomBuildingFilter != 'Tất cả') {
         final buildingName = _getRoomBuildingName(r).toLowerCase();
-        final maToa = (r['ma_toa'] ?? '').toString().toLowerCase();
-        final filterLower = _roomBuildingFilter.toLowerCase();
+        final maToa = (r['ma_toa'] ?? (r['day_nha'] != null ? r['day_nha']['ma_toa'] : '')).toString().toLowerCase();
+        final filterLower = _roomBuildingFilter.toLowerCase().replaceAll('tòa', '').trim();
 
         final matchesBuilding = buildingName.contains(filterLower) ||
             maToa == filterLower ||
-            'tòa $maToa' == filterLower;
+            'tòa $maToa' == _roomBuildingFilter.toLowerCase() ||
+            buildingName.contains(_roomBuildingFilter.toLowerCase());
         if (!matchesBuilding) return false;
       }
 
@@ -1844,103 +1989,180 @@ class _AdminScreenState extends State<AdminScreen> {
 
             const SizedBox(height: 14),
 
-            // Thanh tìm kiếm phòng học
-            TextField(
-              decoration: InputDecoration(
-                hintText: 'Tìm kiếm số phòng (VD: B21.101, D71.102, 101...)...',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                isDense: true,
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            // PANEL BỘ LỌC TÌM KIẾM PHÒNG & THIẾT BỊ
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.blue.shade100),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.shade900.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
-              onChanged: (val) {
-                setState(() {
-                  _roomSearchQuery = val;
-                });
-              },
-            ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. THANH TÌM KIẾM PHÒNG HỌC
+                  TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Tìm kiếm số phòng (VD: B21.101, D71.102, 101...)...',
+                      hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                      prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF0D47A1)),
+                      suffixIcon: _roomSearchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                setState(() => _roomSearchQuery = '');
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF0D47A1), width: 1.5),
+                      ),
+                      isDense: true,
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                    ),
+                    onChanged: (val) {
+                      setState(() {
+                        _roomSearchQuery = val;
+                      });
+                    },
+                  ),
 
-            const SizedBox(height: 10),
+                  const SizedBox(height: 12),
 
-            // 1. BỘ LỌC THEO KHUÔN VIÊN (KHU I, KHU II, KHU HÒA ÂN...)
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6)),
-                  child: const Text('🏛️ Khu:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0D47A1))),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildCampusFilterChip('Tất cả'),
-                        ..._campuses.map<Widget>((c) {
-                          final name = (c['ma_viet_tat'] ?? c['ten_khuon_vien'] ?? '').toString();
-                          return _buildCampusFilterChip(name);
-                        }),
-                      ],
+                  // Header của bộ lọc kèm nút đặt lại nếu đang lọc
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.tune, size: 16, color: Color(0xFF0D47A1)),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Bộ lọc phòng:',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF0D47A1)),
+                          ),
+                          if (_hasActiveRoomFilters) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.blue.shade300),
+                              ),
+                              child: Text(
+                                'Đang lọc $_activeRoomFilterCount',
+                                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1)),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (_hasActiveRoomFilters)
+                        InkWell(
+                          onTap: _resetRoomFilters,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            child: Row(
+                              children: [
+                                Icon(Icons.refresh, size: 13, color: Colors.red.shade700),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'Đặt lại',
+                                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.red.shade700),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // 1. HÀNG KHUÔN VIÊN (ĐÃ DEDUPLICATE)
+                  _buildFilterRow(
+                    icon: '🏛️',
+                    title: 'Khu',
+                    badgeColor: Colors.indigo.shade50,
+                    badgeTextColor: const Color(0xFF0D47A1),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildCampusFilterChip('Tất cả'),
+                          ..._uniqueCampusList.map((name) => _buildCampusFilterChip(name)),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
 
-            // 2. BỘ LỌC THEO TÒA NHÀ (TÒA B21, TÒA D71...)
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
-                  child: const Text('🏢 Tòa:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0D47A1))),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildBuildingFilterChip('Tất cả'),
-                        ..._buildings.map<Widget>((b) {
-                          final code = b['ma_toa'] ?? '';
-                          return _buildBuildingFilterChip('Tòa $code');
-                        }),
-                      ],
+                  // 2. HÀNG TÒA NHÀ (CHỈ HIỆN CÁC TÒA THUỘC KHU ĐÃ CHỌN)
+                  _buildFilterRow(
+                    icon: '🏢',
+                    title: 'Tòa',
+                    badgeColor: Colors.blue.shade50,
+                    badgeTextColor: const Color(0xFF0D47A1),
+                    child: _roomAvailableBuildings.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Text(
+                              'Không có tòa nhà nào trong khu này',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                            ),
+                          )
+                        : SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _buildBuildingFilterChip('Tất cả'),
+                                ..._roomAvailableBuildings.map<Widget>((b) {
+                                  final code = b['ma_toa'] ?? '';
+                                  return _buildBuildingFilterChip('Tòa $code');
+                                }),
+                              ],
+                            ),
+                          ),
+                  ),
+
+                  // 3. HÀNG TRẠNG THÁI
+                  _buildFilterRow(
+                    icon: '⚡',
+                    title: 'Trạng thái',
+                    badgeColor: Colors.teal.shade50,
+                    badgeTextColor: Colors.teal.shade900,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildStatusFilterChip('Tất cả'),
+                          _buildStatusFilterChip('Đang sử dụng'),
+                          _buildStatusFilterChip('Tạm ngưng hoạt động'),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 6),
-
-            // 3. BỘ LỌC THEO TRẠNG THÁI HOẠT ĐỘNG (TẤT CẢ / ĐANG SỬ DỤNG / TẠM NGƯNG)
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
-                  child: const Text('⚡ Trạng thái:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0D47A1))),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildStatusFilterChip('Tất cả'),
-                        _buildStatusFilterChip('Đang sử dụng'),
-                        _buildStatusFilterChip('Tạm ngưng hoạt động'),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
 
             const SizedBox(height: 12),
@@ -1989,6 +2211,7 @@ class _AdminScreenState extends State<AdminScreen> {
         onSelected: (val) {
           setState(() {
             _roomCampusFilter = label;
+            _roomBuildingFilter = 'Tất cả';
           });
         },
         selectedColor: Colors.indigo.shade800,
@@ -2756,143 +2979,183 @@ class _AdminScreenState extends State<AdminScreen> {
 
             const SizedBox(height: 14),
 
-            // 1. THANH TÌM KIẾM PHÒNG & SỰ CỐ
-            TextField(
-              controller: _incidentSearchCtrl,
-              decoration: InputDecoration(
-                hintText: 'Tìm theo số phòng (VD: B21.102, 102...), mã phiếu, mô tả...',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                suffixIcon: _incidentSearchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () {
-                          _incidentSearchCtrl.clear();
-                          setState(() => _incidentSearchQuery = '');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                isDense: true,
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            // PANEL BỘ LỌC TÌM KIẾM SỰ CỐ
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.blue.shade100),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.shade900.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
-              onChanged: (val) {
-                setState(() => _incidentSearchQuery = val);
-              },
-            ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. THANH TÌM KIẾM PHÒNG & SỰ CỐ
+                  TextField(
+                    controller: _incidentSearchCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'Tìm theo số phòng (VD: B21.102...), mã phiếu, mô tả...',
+                      hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                      prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF0D47A1)),
+                      suffixIcon: _incidentSearchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _incidentSearchCtrl.clear();
+                                setState(() => _incidentSearchQuery = '');
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF0D47A1), width: 1.5),
+                      ),
+                      isDense: true,
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                    ),
+                    onChanged: (val) {
+                      setState(() => _incidentSearchQuery = val);
+                    },
+                  ),
 
-            const SizedBox(height: 10),
+                  const SizedBox(height: 12),
 
-            // 2. LỌC THEO NGÀY THÁNG
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6)),
-                  child: const Text('📅 Ngày:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Colors.deepOrange)),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildIncidentDateChip('Tất cả'),
-                        _buildIncidentDateChip('Hôm nay'),
-                        _buildIncidentDateChip('7 ngày qua'),
-                        _buildIncidentDateChip('Tháng này'),
-                        _buildIncidentDateCustomChip(),
-                      ],
+                  // Header của bộ lọc kèm nút đặt lại nếu đang lọc
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.tune, size: 16, color: Color(0xFF0D47A1)),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Bộ lọc sự cố:',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF0D47A1)),
+                          ),
+                          if (_hasActiveIncidentFilters) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.orange.shade300),
+                              ),
+                              child: Text(
+                                'Đang lọc $_activeIncidentFilterCount',
+                                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.orange.shade900),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (_hasActiveIncidentFilters)
+                        InkWell(
+                          onTap: _resetIncidentFilters,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            child: Row(
+                              children: [
+                                Icon(Icons.refresh, size: 13, color: Colors.red.shade700),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'Đặt lại',
+                                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.red.shade700),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // 2. HÀNG NGÀY THÁNG
+                  _buildFilterRow(
+                    icon: '📅',
+                    title: 'Ngày',
+                    badgeColor: Colors.orange.shade50,
+                    badgeTextColor: Colors.deepOrange.shade900,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildIncidentDateChip('Tất cả'),
+                          _buildIncidentDateChip('Hôm nay'),
+                          _buildIncidentDateChip('7 ngày qua'),
+                          _buildIncidentDateChip('Tháng này'),
+                          _buildIncidentDateCustomChip(),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
 
-            // 3. LỌC THEO KHU
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6)),
-                  child: const Text('🏛️ Khu:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0D47A1))),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildIncidentCampusChip('Tất cả'),
-                        ..._campuses.map<Widget>((c) {
-                          final name = (c['ma_viet_tat'] ?? c['ten_khuon_vien'] ?? '').toString();
-                          return _buildIncidentCampusChip(name);
-                        }),
-                      ],
+                  // 3. HÀNG KHUÔN VIÊN (ĐÃ DEDUPLICATE)
+                  _buildFilterRow(
+                    icon: '🏛️',
+                    title: 'Khu',
+                    badgeColor: Colors.indigo.shade50,
+                    badgeTextColor: const Color(0xFF0D47A1),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildIncidentCampusChip('Tất cả'),
+                          ..._uniqueCampusList.map((name) => _buildIncidentCampusChip(name)),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
 
-            // 4. LỌC THEO TÒA
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
-                  child: const Text('🏢 Tòa:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0D47A1))),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildIncidentBuildingChip('Tất cả'),
-                        ..._buildings.map<Widget>((b) {
-                          final code = b['ma_toa'] ?? '';
-                          return _buildIncidentBuildingChip('Tòa $code');
-                        }),
-                      ],
-                    ),
+                  // 4. HÀNG TÒA NHÀ (CHỈ HIỆN CÁC TÒA THUỘC KHU ĐÃ CHỌN)
+                  _buildFilterRow(
+                    icon: '🏢',
+                    title: 'Tòa',
+                    badgeColor: Colors.blue.shade50,
+                    badgeTextColor: const Color(0xFF0D47A1),
+                    child: _incidentAvailableBuildings.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Text(
+                              'Không có tòa nhà nào trong khu này',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                            ),
+                          )
+                        : SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _buildIncidentBuildingChip('Tất cả'),
+                                ..._incidentAvailableBuildings.map<Widget>((b) {
+                                  final code = b['ma_toa'] ?? '';
+                                  return _buildIncidentBuildingChip('Tòa $code');
+                                }),
+                              ],
+                            ),
+                          ),
                   ),
-                ),
-              ],
-            ),
-
-            if (_selectedFilter != 'Tất cả' ||
-                _incidentSearchQuery.isNotEmpty ||
-                _incidentCampusFilter != 'Tất cả' ||
-                _incidentBuildingFilter != 'Tất cả' ||
-                _incidentDateFilter != 'Tất cả') ...[
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    foregroundColor: Colors.red.shade700,
-                  ),
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Đặt lại toàn bộ bộ lọc', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  onPressed: () {
-                    setState(() {
-                      _selectedFilter = 'Tất cả';
-                      _incidentSearchQuery = '';
-                      _incidentSearchCtrl.clear();
-                      _incidentCampusFilter = 'Tất cả';
-                      _incidentBuildingFilter = 'Tất cả';
-                      _incidentDateFilter = 'Tất cả';
-                      _customDateRange = null;
-                    });
-                  },
-                ),
+                ],
               ),
-            ],
+            ),
 
             const SizedBox(height: 12),
 
@@ -3383,6 +3646,7 @@ class _AdminScreenState extends State<AdminScreen> {
         onSelected: (val) {
           setState(() {
             _incidentCampusFilter = label;
+            _incidentBuildingFilter = 'Tất cả';
           });
         },
         selectedColor: Colors.indigo.shade800,
