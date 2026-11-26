@@ -351,6 +351,72 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     );
   }
 
+  void _showInactiveRoomAlert(String roomName, {String? message}) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.block, color: Colors.red, size: 28),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Phòng Tạm Ngưng Hoạt Động',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              message ?? 'Phòng $roomName hiện đang tạm ngưng hoạt động hoặc không còn sử dụng.',
+              style: const TextStyle(fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.error_outline, size: 20, color: Colors.red),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Hệ thống không cho phép gửi báo cáo sự cố cho phòng đã ngưng hoạt động!',
+                      style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                _selectedRoomId = null;
+                _selectedRoomData = null;
+                _roomInputCtrl.clear();
+              });
+            },
+            child: const Text('Đã hiểu'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleQrScanned(String qrCode) async {
     final clean = qrCode.replaceAll(RegExp(r'^(TVU-|B21\.|B21-)', caseSensitive: false), '').trim().toLowerCase();
     Map<String, dynamic>? room = _rooms.cast<Map<String, dynamic>?>().firstWhere(
@@ -364,15 +430,12 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       orElse: () => null,
     );
 
-    if (room == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('🔍 Đang kiểm tra mã QR: $qrCode...'), duration: const Duration(seconds: 1)),
-      );
-      room = await _api.getRoomByQr(qrCode);
-    }
-
-    if (mounted) {
-      if (room != null) {
+    if (room != null) {
+      if (room['dang_su_dung'] == 0 || room['dang_su_dung'] == false) {
+        _showInactiveRoomAlert(room['so_phong_day_du'] ?? room['so_phong'] ?? qrCode);
+        return;
+      }
+      if (mounted) {
         setState(() {
           _applySelectedRoom(room!);
         });
@@ -383,11 +446,45 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
             duration: const Duration(seconds: 3),
           ),
         );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Không tìm thấy phòng với mã QR: "$qrCode"!'), backgroundColor: Colors.red),
-        );
       }
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('🔍 Đang kiểm tra mã QR: $qrCode...'), duration: const Duration(seconds: 1)),
+    );
+    final checkRes = await _api.checkRoomQr(qrCode);
+
+    if (!mounted) return;
+
+    if (checkRes['status'] == 'inactive') {
+      _showInactiveRoomAlert(qrCode, message: checkRes['message']);
+      return;
+    }
+
+    if (checkRes['status'] == 'success' && checkRes['data'] != null) {
+      final roomData = checkRes['data'] as Map<String, dynamic>;
+      if (roomData['dang_su_dung'] == 0 || roomData['dang_su_dung'] == false) {
+        _showInactiveRoomAlert(roomData['so_phong_day_du'] ?? roomData['so_phong'] ?? qrCode);
+        return;
+      }
+      setState(() {
+        _applySelectedRoom(roomData);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Đã nhận diện: ${_formatRoom(roomData)}'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(checkRes['message'] ?? '❌ Không tìm thấy phòng với mã QR: "$qrCode"!'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -398,6 +495,10 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng nhập hoặc chọn phòng học!')),
       );
+      return;
+    }
+    if (_selectedRoomData != null && (_selectedRoomData!['dang_su_dung'] == 0 || _selectedRoomData!['dang_su_dung'] == false)) {
+      _showInactiveRoomAlert(_selectedRoomData!['so_phong_day_du'] ?? 'Phòng này');
       return;
     }
     if (desc.isEmpty) {
@@ -419,7 +520,9 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     setState(() => _isSubmitting = false);
 
     if (mounted) {
-      if (res['status'] == 'success') {
+      if (res['status'] == 'inactive') {
+        _showInactiveRoomAlert(_selectedRoomData?['so_phong_day_du'] ?? 'Phòng này', message: res['message']);
+      } else if (res['status'] == 'success') {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('🎉 Gửi báo cáo thành công kèm ${_imagesBytes.length} ảnh!'),

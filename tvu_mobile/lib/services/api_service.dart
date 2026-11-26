@@ -144,9 +144,9 @@ class ApiService {
   }
 
   // 2. Lấy danh sách phòng học
-  Future<List<dynamic>> getRooms() async {
+  Future<List<dynamic>> getRooms({bool all = false}) async {
     try {
-      final response = await _dio.get('/rooms');
+      final response = await _dio.get('/rooms', queryParameters: all ? {'all': 1} : null);
       if (response.data['status'] == 'success') {
         return response.data['data'] as List<dynamic>;
       }
@@ -180,6 +180,22 @@ class ApiService {
       return null;
     } catch (_) {
       return null;
+    }
+  }
+
+  // 4b. Kiểm tra chi tiết mã QR (Bao gồm cảnh báo phòng tạm ngưng/đã ẩn)
+  Future<Map<String, dynamic>> checkRoomQr(String qrCode) async {
+    try {
+      final code = Uri.encodeComponent(qrCode.trim());
+      final response = await _dio.get('/room/$code');
+      return response.data;
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.data is Map<String, dynamic>) {
+        return e.response!.data as Map<String, dynamic>;
+      }
+      return {'status': 'error', 'message': e.message ?? 'Lỗi kết nối máy chủ'};
+    } catch (e) {
+      return {'status': 'error', 'message': e.toString()};
     }
   }
 
@@ -521,6 +537,25 @@ class ApiService {
       return response.data;
     } catch (e) {
       return {'status': 'error', 'message': 'Lỗi thêm người dùng: $e'};
+    }
+  }
+
+  // 14b. Admin: Bật / Tắt trạng thái hoạt động của phòng (Ẩn phòng không còn sử dụng)
+  Future<Map<String, dynamic>> toggleRoomStatus(int roomId, {int? status}) async {
+    try {
+      final data = <String, dynamic>{};
+      if (status != null) {
+        data['dang_su_dung'] = status;
+      }
+      final response = await _dio.post('/admin/rooms/$roomId/toggle-status', data: data);
+      return response.data;
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.data is Map<String, dynamic>) {
+        return e.response!.data as Map<String, dynamic>;
+      }
+      return {'status': 'error', 'message': 'Lỗi kết nối: ${e.message}'};
+    } catch (e) {
+      return {'status': 'error', 'message': 'Lỗi hệ thống: $e'};
     }
   }
 

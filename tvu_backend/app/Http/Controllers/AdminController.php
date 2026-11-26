@@ -365,4 +365,33 @@ class AdminController extends Controller
 
         return view('admin.print_qr', compact('room'));
     }
+
+    // 5. Bật / Tắt trạng thái hoạt động của phòng (Ẩn phòng không còn sử dụng)
+    public function toggleRoomStatus(Request $request, $id)
+    {
+        $room = PhongHoc::where('ma_phong_hoc', $id)->first();
+        if (!$room) {
+            return response()->json(['status' => 'error', 'message' => 'Không tìm thấy phòng học!'], 404);
+        }
+
+        $newStatus = $request->has('dang_su_dung')
+            ? (int)$request->input('dang_su_dung')
+            : ($room->dang_su_dung == 1 ? 0 : 1);
+
+        $room->dang_su_dung = $newStatus;
+        $room->save();
+
+        $statusText = $newStatus == 1 ? 'Đang sử dụng' : 'Tạm ngưng hoạt động (Đã ẩn)';
+
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'status'       => 'success',
+                'message'      => "Đã chuyển trạng thái phòng {$room->so_phong_day_du} sang: {$statusText}!",
+                'dang_su_dung' => $newStatus,
+                'data'         => $room,
+            ]);
+        }
+
+        return redirect()->back()->with('success', "Đã chuyển trạng thái phòng sang: {$statusText}!");
+    }
 }

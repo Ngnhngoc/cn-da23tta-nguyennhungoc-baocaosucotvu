@@ -38,6 +38,7 @@ class _AdminScreenState extends State<AdminScreen> {
   String _roomSearchQuery = '';
   String _roomBuildingFilter = 'Tất cả';
   String _roomCampusFilter = 'Tất cả';
+  String _roomStatusFilter = 'Tất cả'; // 'Tất cả', 'Đang sử dụng', 'Tạm ngưng hoạt động'
 
   @override
   void initState() {
@@ -50,7 +51,7 @@ class _AdminScreenState extends State<AdminScreen> {
     final stats = await _api.getStats();
     final incidents = await _api.getAllIncidents();
     final technicians = await _api.getTechnicians();
-    final rooms = await _api.getRooms();
+    final rooms = await _api.getRooms(all: true);
     final campuses = await _api.getCampuses();
     final buildings = await _api.getBuildings();
 
@@ -218,6 +219,15 @@ class _AdminScreenState extends State<AdminScreen> {
             maToa == filterLower ||
             'tòa $maToa' == filterLower;
         if (!matchesBuilding) return false;
+      }
+
+      // 3. Lọc theo Trạng thái hoạt động (Đang sử dụng / Tạm ngưng hoạt động)
+      if (_roomStatusFilter == 'Đang sử dụng') {
+        final isUsing = (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true);
+        if (!isUsing) return false;
+      } else if (_roomStatusFilter == 'Tạm ngưng hoạt động') {
+        final isUsing = (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true);
+        if (isUsing) return false;
       }
 
       return true;
@@ -1226,6 +1236,121 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  // 5.2 BẬT / TẮT ẨN TRẠNG THÁI HOẠT ĐỘNG PHÒNG
+  Future<void> _confirmToggleRoomStatus(Map<String, dynamic> r) async {
+    final bool isCurrentlyActive = (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true);
+    final roomName = _getRoomDisplayName(r);
+    final roomId = r['ma_phong_hoc'];
+    if (roomId == null) return;
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(
+              isCurrentlyActive ? Icons.pause_circle_outline : Icons.check_circle_outline,
+              color: isCurrentlyActive ? Colors.red : Colors.green,
+              size: 26,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                isCurrentlyActive ? 'Tạm ngưng phòng?' : 'Kích hoạt lại phòng?',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: isCurrentlyActive ? Colors.red.shade800 : Colors.green.shade800,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text.rich(
+              TextSpan(
+                children: [
+                  const TextSpan(text: 'Bạn có chắc chắn muốn '),
+                  TextSpan(
+                    text: isCurrentlyActive ? 'TẠM NGƯNG / ẨN' : 'KÍCH HOẠT LẠI',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isCurrentlyActive ? Colors.red : Colors.green,
+                    ),
+                  ),
+                  TextSpan(text: ' phòng học $roomName không?'),
+                ],
+              ),
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isCurrentlyActive ? Colors.red.shade50 : Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isCurrentlyActive ? Colors.red.shade200 : Colors.green.shade200),
+              ),
+              child: Text(
+                isCurrentlyActive
+                    ? '⚠️ Khi tạm ngưng: Phòng sẽ được ẩn khỏi danh sách sử dụng. Người dùng quét mã QR hoặc tìm kiếm phòng này sẽ KHÔNG thể báo cáo sự cố được nữa.'
+                    : '✅ Khi kích hoạt: Phòng sẽ hiển thị lại bình thường và cho phép giảng viên/sinh viên quét mã QR báo cáo sự cố.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isCurrentlyActive ? Colors.red.shade900 : Colors.green.shade900,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isCurrentlyActive ? Colors.red : Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(isCurrentlyActive ? 'Xác nhận Tạm ngưng' : 'Xác nhận Kích hoạt'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final newStatus = isCurrentlyActive ? 0 : 1;
+    final res = await _api.toggleRoomStatus(roomId, status: newStatus);
+
+    if (mounted) {
+      if (res['status'] == 'success') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res['message'] ?? 'Đã cập nhật trạng thái phòng!'),
+            backgroundColor: newStatus == 1 ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        _loadAllData();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res['message'] ?? 'Thất bại khi cập nhật trạng thái phòng'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   // 6. CẬP NHẬT / SỬA TOÀN BỘ TRANG THIẾT BỊ CỦA PHÒNG HỌC
   void _showEditEquipmentDialog(Map<String, dynamic> room) {
     final soPhong = _getRoomDisplayName(room);
@@ -1792,6 +1917,32 @@ class _AdminScreenState extends State<AdminScreen> {
               ],
             ),
 
+            const SizedBox(height: 6),
+
+            // 3. BỘ LỌC THEO TRẠNG THÁI HOẠT ĐỘNG (TẤT CẢ / ĐANG SỬ DỤNG / TẠM NGƯNG)
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+                  child: const Text('⚡ Trạng thái:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0D47A1))),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildStatusFilterChip('Tất cả'),
+                        _buildStatusFilterChip('Đang sử dụng'),
+                        _buildStatusFilterChip('Tạm ngưng hoạt động'),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
             const SizedBox(height: 12),
 
             // Danh sách phòng học
@@ -1875,6 +2026,42 @@ class _AdminScreenState extends State<AdminScreen> {
         ),
         backgroundColor: Colors.white,
         side: BorderSide(color: isSelected ? const Color(0xFF0D47A1) : Colors.grey.shade300),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      ),
+    );
+  }
+
+  Widget _buildStatusFilterChip(String label) {
+    final isSelected = _roomStatusFilter == label;
+    Color chipColor = const Color(0xFF0D47A1);
+    Color bgColor = Colors.blue.shade50;
+    if (label == 'Đang sử dụng') {
+      chipColor = Colors.green.shade800;
+      bgColor = Colors.green.shade50;
+    } else if (label == 'Tạm ngưng hoạt động') {
+      chipColor = Colors.red.shade800;
+      bgColor = Colors.red.shade50;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (val) {
+          setState(() {
+            _roomStatusFilter = label;
+          });
+        },
+        selectedColor: chipColor,
+        checkmarkColor: Colors.white,
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : chipColor,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+          fontSize: 12,
+        ),
+        backgroundColor: bgColor,
+        side: BorderSide(color: isSelected ? chipColor : chipColor.withValues(alpha: 0.3)),
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       ),
     );
@@ -2086,16 +2273,52 @@ class _AdminScreenState extends State<AdminScreen> {
                     ),
                   ],
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                Tooltip(
+                  message: (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true)
+                      ? 'Bấm để Tạm ngưng hoạt động / Ẩn phòng'
+                      : 'Bấm để Kích hoạt lại phòng',
+                  child: InkWell(
+                    onTap: () => _confirmToggleRoomStatus(r),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.green.shade200),
-                  ),
-                  child: Text(
-                    (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true) ? '● Đang sử dụng' : 'Tạm khóa',
-                    style: TextStyle(color: Colors.green.shade800, fontSize: 11, fontWeight: FontWeight.bold),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true)
+                            ? Colors.green.shade50
+                            : Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true)
+                              ? Colors.green.shade300
+                              : Colors.red.shade300,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true)
+                                ? '● Đang sử dụng'
+                                : '○ Tạm ngưng (Đã ẩn)',
+                            style: TextStyle(
+                              color: (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true)
+                                  ? Colors.green.shade800
+                                  : Colors.red.shade800,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.sync,
+                            size: 11,
+                            color: (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true)
+                                ? Colors.green.shade700
+                                : Colors.red.shade700,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -2200,6 +2423,35 @@ class _AdminScreenState extends State<AdminScreen> {
                     label: const Text('Sửa Thiết Bị', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     onPressed: () => _showEditEquipmentDialog(r),
                   ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  style: IconButton.styleFrom(
+                    backgroundColor: (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true)
+                        ? Colors.amber.shade50
+                        : Colors.green.shade50,
+                    foregroundColor: (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true)
+                        ? Colors.amber.shade900
+                        : Colors.green.shade800,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(
+                        color: (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true)
+                            ? Colors.amber.shade300
+                            : Colors.green.shade300,
+                      ),
+                    ),
+                  ),
+                  tooltip: (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true)
+                      ? 'Tạm ngưng / Ẩn phòng này'
+                      : 'Kích hoạt lại phòng này',
+                  icon: Icon(
+                    (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true)
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    size: 20,
+                  ),
+                  onPressed: () => _confirmToggleRoomStatus(r),
                 ),
                 const SizedBox(width: 8),
                 IconButton(

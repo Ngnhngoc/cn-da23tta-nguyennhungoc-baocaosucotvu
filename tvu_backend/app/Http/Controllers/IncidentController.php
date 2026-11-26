@@ -20,9 +20,14 @@ class IncidentController extends Controller
     }
 
     // API Lấy danh sách phòng học
-    public function getRooms()
+    public function getRooms(Request $request)
     {
-        $rooms = PhongHoc::where('dang_su_dung', 1)->get();
+        $query = PhongHoc::query();
+        // Mặc định chỉ lấy phòng đang hoạt động; Nếu truyền all=1 hoặc include_inactive=1 thì lấy toàn bộ
+        if (!$request->has('all') && !$request->has('include_inactive')) {
+            $query->where('dang_su_dung', 1);
+        }
+        $rooms = $query->get();
         return response()->json([
             'status' => 'success',
             'data'   => $rooms
@@ -50,6 +55,15 @@ class IncidentController extends Controller
             ], 404);
         }
 
+        // Chặn phòng học tạm ngưng hoạt động hoặc đã bị ẩn
+        if ($room->dang_su_dung != 1) {
+            return response()->json([
+                'status'  => 'inactive',
+                'message' => "Phòng {$room->so_phong_day_du} hiện đang tạm ngưng hoạt động hoặc không còn sử dụng. Không thể báo cáo sự cố cho phòng này!",
+                'data'    => $room,
+            ], 403);
+        }
+
         return response()->json([
             'status' => 'success',
             'data'   => $room
@@ -65,6 +79,21 @@ class IncidentController extends Controller
             'mo_ta_hu_hong'      => 'required|string',
             'vi_tri_trong_phong' => 'nullable|string',
         ]);
+
+        $room = PhongHoc::find($request->ma_phong_hoc);
+        if (!$room) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Không tìm thấy thông tin phòng học!'
+            ], 404);
+        }
+
+        if ($room->dang_su_dung != 1) {
+            return response()->json([
+                'status'  => 'inactive',
+                'message' => "Phòng {$room->so_phong_day_du} hiện đang tạm ngưng hoạt động hoặc không còn sử dụng. Không thể gửi báo cáo sự cố!",
+            ], 403);
+        }
 
         // Tạo mã phiếu tự động: SC-NămThángNgày-SốNgẫuNhiên
         $maPhieu = 'SC-' . date('Ymd') . '-' . rand(100, 999);

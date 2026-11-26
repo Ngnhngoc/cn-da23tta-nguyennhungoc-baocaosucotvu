@@ -45,9 +45,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/buildings', [\App\Http\Controllers\AdminController::class, 'getBuildings']);
     Route::post('/admin/buildings', [\App\Http\Controllers\AdminController::class, 'addBuilding']);
 
-    // Admin Quản trị: Thêm phòng & Tạo mã QR, Thêm thiết bị, Xóa phòng, Thêm người dùng (GV/SV/KTV)
+    // Admin Quản trị: Thêm phòng & Tạo mã QR, Thêm thiết bị, Xóa phòng, Bật/Tắt ẩn phòng, Thêm người dùng
     Route::post('/admin/rooms', [\App\Http\Controllers\AdminController::class, 'addRoom']);
     Route::delete('/admin/rooms/{id}', [\App\Http\Controllers\AdminController::class, 'deleteRoom']);
     Route::post('/admin/rooms/{id}/equipments', [\App\Http\Controllers\AdminController::class, 'updateRoomEquipments']);
+    Route::post('/admin/rooms/{id}/toggle-status', [\App\Http\Controllers\AdminController::class, 'toggleRoomStatus']);
     Route::post('/admin/users', [\App\Http\Controllers\AdminController::class, 'addUser']);
 });

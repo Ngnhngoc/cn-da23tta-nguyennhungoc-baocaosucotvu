@@ -383,7 +383,10 @@ class _QrScannerModalState extends State<QrScannerModal>
                       Wrap(
                         spacing: 8,
                         runSpacing: 6,
-                        children: widget.availableRooms!.take(6).map((r) {
+                        children: widget.availableRooms!
+                            .where((r) => r['dang_su_dung'] != 0 && r['dang_su_dung'] != false)
+                            .take(6)
+                            .map((r) {
                           final qr = r['ma_qr_dinh_danh'] ?? 'TVU-${r['so_phong']}';
                           final shortName = r['so_phong_day_du'] ??
                               (r['so_phong'] != null ? 'B21.${r['so_phong']}' : qr);

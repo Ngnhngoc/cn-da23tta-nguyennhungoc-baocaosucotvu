@@ -23,6 +23,7 @@ Route::get('/admin', [AdminController::class, 'index'])->name('admin.dashboard')
 Route::post('/admin/incidents/{id}/status', [AdminController::class, 'updateStatus'])->name('admin.incidents.status');
 Route::post('/admin/rooms', [AdminController::class, 'addRoom'])->name('admin.rooms.store');
 Route::post('/admin/rooms/{id}/equipments', [AdminController::class, 'updateRoomEquipments'])->name('admin.rooms.equipments');
+Route::post('/admin/rooms/{id}/toggle-status', [AdminController::class, 'toggleRoomStatus'])->name('admin.rooms.toggle');
 Route::post('/admin/users', [AdminController::class, 'addUser'])->name('admin.users.store');
 Route::get('/admin/rooms/{id}/print', [AdminController::class, 'printRoomQr'])->name('admin.rooms.print');
 
