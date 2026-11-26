@@ -1,7 +1,16 @@
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.2.91:8000/api';
+  static String get baseUrl {
+    if (kIsWeb) {
+      final host = Uri.base.host;
+      if (host.isNotEmpty) {
+        return 'http://$host:8000/api';
+      }
+    }
+    return 'http://172.20.10.2:8000/api';
+  }
 
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;

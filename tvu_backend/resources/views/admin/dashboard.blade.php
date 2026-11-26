@@ -38,6 +38,10 @@
                     <p class="text-xs font-semibold">Ban Quản Lý</p>
                     <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-400 text-blue-950 font-bold">Admin</span>
                 </div>
+                <!-- Nút Đăng Xuất -->
+                <button onclick="handleLogout()" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold shadow flex items-center gap-1.5 transition ml-1" title="Đăng xuất khỏi hệ thống">
+                    <i class="fa-solid fa-right-from-bracket"></i> Đăng xuất
+                </button>
             </div>
         </div>
     </header>
@@ -391,6 +395,13 @@
     </div>
 
     <script>
+        function handleLogout() {
+            if (confirm('Bạn có chắc chắn muốn đăng xuất khỏi trang Quản trị TVU?')) {
+                // Điều hướng về cổng đăng nhập chính của hệ thống (Flutter Web port 8088 hoặc trang chủ)
+                window.location.href = 'http://' + window.location.hostname + ':8088';
+            }
+        }
+
         function openEditEquipmentModal(roomId, roomName, ac, fan, tv) {
             document.getElementById('editRoomName').innerText = roomName;
             document.getElementById('editAc').value = ac;
