@@ -95,6 +95,68 @@ class AdminController extends Controller
         ], 201);
     }
 
+    public function updateCampus(Request $request, $id)
+    {
+        $campus = \App\Models\KhuonVien::find($id);
+        if (!$campus) {
+            return response()->json(['status' => 'error', 'message' => 'Không tìm thấy khu!'], 404);
+        }
+        $request->validate([
+            'ten_khuon_vien' => 'required|string',
+            'ma_viet_tat'    => 'required|string',
+        ]);
+        $campus->ten_khuon_vien = $request->input('ten_khuon_vien');
+        $campus->ma_viet_tat    = $request->input('ma_viet_tat');
+        if ($request->has('dia_chi')) $campus->dia_chi = $request->input('dia_chi');
+        if ($request->has('mo_ta')) $campus->mo_ta = $request->input('mo_ta');
+        $campus->save();
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Đã cập nhật khu: {$campus->ten_khuon_vien}!",
+            'data'    => $campus
+        ], 200);
+    }
+
+    public function toggleCampusStatus($id)
+    {
+        $campus = \App\Models\KhuonVien::find($id);
+        if (!$campus) {
+            return response()->json(['status' => 'error', 'message' => 'Không tìm thấy khu!'], 404);
+        }
+        $current = isset($campus->dang_su_dung) ? (bool)$campus->dang_su_dung : true;
+        $campus->dang_su_dung = !$current;
+        $campus->save();
+
+        // Đồng bộ ẩn/hiện các phòng thuộc khu này nếu cần, hoặc giữ nguyên trạng thái khu
+        $statusText = $campus->dang_su_dung ? 'Đang hoạt động' : 'Đã ẩn';
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Đã chuyển khu {$campus->ma_viet_tat} sang trạng thái: {$statusText}!",
+            'data'    => $campus
+        ], 200);
+    }
+
+    public function deleteCampus($id)
+    {
+        $campus = \App\Models\KhuonVien::find($id);
+        if (!$campus) {
+            return response()->json(['status' => 'error', 'message' => 'Không tìm thấy khu!'], 404);
+        }
+        $buildingCount = \App\Models\DayNha::where('ma_khuon_vien', $id)->count();
+        if ($buildingCount > 0) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => "Không thể xóa khu này vì đang có {$buildingCount} tòa nhà thuộc khu. Vui lòng xóa hoặc chuyển các tòa nhà trước, hoặc dùng nút Ẩn!"
+            ], 422);
+        }
+        $campus->delete();
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Đã xóa khu {$campus->ten_khuon_vien} thành công!"
+        ], 200);
+    }
+
     // 0.1 Quản lý Tòa (Dãy nhà)
     public function getBuildings()
     {
@@ -144,6 +206,71 @@ class AdminController extends Controller
             'message' => "Đã thêm tòa: {$building->ten_day_nha} ({$building->ma_toa}) thành công!",
             'data'    => $building
         ], 201);
+    }
+
+    public function updateBuilding(Request $request, $id)
+    {
+        $building = \App\Models\DayNha::find($id);
+        if (!$building) {
+            return response()->json(['status' => 'error', 'message' => 'Không tìm thấy tòa nhà!'], 404);
+        }
+        $request->validate([
+            'ma_toa'        => 'required|string',
+            'ma_khuon_vien' => 'required',
+        ]);
+        $maToa = strtoupper(trim($request->input('ma_toa')));
+        $building->ma_khuon_vien = (int)$request->input('ma_khuon_vien');
+        $building->ma_toa        = $maToa;
+        $building->ten_day_nha   = $request->input('ten_day_nha') ?: "Tòa nhà {$maToa}";
+        if ($request->has('tong_so_tang')) {
+            $building->tong_so_tang = (int)$request->input('tong_so_tang');
+        }
+        $building->save();
+        $building->load('khuonVien');
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Đã cập nhật tòa: {$building->ten_day_nha} ({$building->ma_toa})!",
+            'data'    => $building
+        ], 200);
+    }
+
+    public function toggleBuildingStatus($id)
+    {
+        $building = \App\Models\DayNha::find($id);
+        if (!$building) {
+            return response()->json(['status' => 'error', 'message' => 'Không tìm thấy tòa nhà!'], 404);
+        }
+        $current = isset($building->dang_su_dung) ? (bool)$building->dang_su_dung : true;
+        $building->dang_su_dung = !$current;
+        $building->save();
+
+        $statusText = $building->dang_su_dung ? 'Đang hoạt động' : 'Đã ẩn';
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Đã chuyển {$building->ten_day_nha} sang trạng thái: {$statusText}!",
+            'data'    => $building
+        ], 200);
+    }
+
+    public function deleteBuilding($id)
+    {
+        $building = \App\Models\DayNha::find($id);
+        if (!$building) {
+            return response()->json(['status' => 'error', 'message' => 'Không tìm thấy tòa nhà!'], 404);
+        }
+        $roomCount = \App\Models\PhongHoc::where('ma_day_nha', $id)->count();
+        if ($roomCount > 0) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => "Không thể xóa tòa nhà này vì đang có {$roomCount} phòng học bên trong. Vui lòng xóa các phòng trước hoặc dùng nút Ẩn!"
+            ], 422);
+        }
+        $building->delete();
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Đã xóa tòa {$building->ten_day_nha} thành công!"
+        ], 200);
     }
 
     // 1. Thêm phòng học mới & Tự động tạo mã QR kèm thiết bị
@@ -316,6 +443,34 @@ class AdminController extends Controller
         return redirect()->back()->with('success', "Đã cập nhật thiết bị phòng {$room->so_phong} thành công!");
     }
 
+    // 3.0 Lấy danh sách toàn bộ người dùng (hỗ trợ lọc vai trò, tìm kiếm)
+    public function getUsers(Request $request)
+    {
+        $query = User::query();
+
+        if ($request->filled('vai_tro') && $request->vai_tro != 'Tất cả') {
+            $query->where('vai_tro', $request->vai_tro);
+        }
+
+        if ($request->filled('search')) {
+            $s = trim($request->search);
+            $query->where(function ($q) use ($s) {
+                $q->where('ten_dang_nhap', 'like', "%{$s}%")
+                  ->orWhere('ho_va_ten', 'like', "%{$s}%")
+                  ->orWhere('email_tvu', 'like', "%{$s}%")
+                  ->orWhere('so_dien_thoai', 'like', "%{$s}%")
+                  ->orWhere('lop_hoac_don_vi', 'like', "%{$s}%");
+            });
+        }
+
+        $users = $query->orderBy('ma_nguoi_dung', 'desc')->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => $users
+        ], 200);
+    }
+
     // 3. Thêm tài khoản Giảng viên, Sinh viên, Kỹ thuật viên
     public function addUser(Request $request)
     {
@@ -356,6 +511,83 @@ class AdminController extends Controller
         return redirect()->back()->with('success', "Đã thêm tài khoản $vaiTro: {$user->ho_va_ten} thành công!");
     }
 
+    // 3.1 Cập nhật thông tin tài khoản người dùng
+    public function updateUser(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+
+        $request->validate([
+            'ho_va_ten' => 'required|string',
+            'vai_tro'   => 'required|string',
+        ]);
+
+        $user->ho_va_ten = $request->input('ho_va_ten');
+        $user->vai_tro = $request->input('vai_tro');
+        if ($request->has('email_tvu')) {
+            $user->email_tvu = $request->input('email_tvu');
+        }
+        if ($request->has('so_dien_thoai')) {
+            $user->so_dien_thoai = $request->input('so_dien_thoai');
+        }
+        if ($request->has('lop_hoac_don_vi')) {
+            $user->lop_hoac_don_vi = $request->input('lop_hoac_don_vi');
+        }
+        if ($request->has('dang_hoat_dong')) {
+            $user->dang_hoat_dong = (int)$request->input('dang_hoat_dong');
+        }
+
+        // Nếu admin muốn cập nhật mật khẩu luôn
+        if ($request->filled('mat_khau_moi')) {
+            $user->mat_khau_ma_hoa = Hash::make($request->input('mat_khau_moi'));
+        }
+
+        $user->save();
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Đã cập nhật thông tin tài khoản {$user->ten_dang_nhap} thành công!",
+            'data'    => $user
+        ], 200);
+    }
+
+    // 3.2 Đặt lại mật khẩu tài khoản
+    public function resetPassword(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+        $newPassword = $request->input('mat_khau_moi', '123456');
+
+        $user->mat_khau_ma_hoa = Hash::make($newPassword);
+        $user->save();
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Đã đặt lại mật khẩu cho tài khoản {$user->ten_dang_nhap} thành công (Mật khẩu mới: $newPassword)!",
+        ], 200);
+    }
+
+    // 3.3 Xóa tài khoản người dùng
+    public function deleteUser(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+
+        // Không cho phép xóa chính mình (admin đang đăng nhập)
+        if ($request->user() && $request->user()->ma_nguoi_dung == $user->ma_nguoi_dung) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Không thể xóa tài khoản Quản trị viên đang đăng nhập!'
+            ], 400);
+        }
+
+        $username = $user->ten_dang_nhap;
+        $name = $user->ho_va_ten;
+        $user->delete();
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Đã xóa tài khoản $name ($username) khỏi hệ thống!",
+        ], 200);
+    }
+
     // 4. In bảng mã QR định danh phòng học chính thức
     public function printRoomQr($id)
     {
@@ -393,5 +625,72 @@ class AdminController extends Controller
         }
 
         return redirect()->back()->with('success', "Đã chuyển trạng thái phòng sang: {$statusText}!");
+    }
+
+    // 6. Xuất bản in & File PDF Báo cáo thiết bị theo Tòa và Khu
+    public function printEquipmentReport(Request $request)
+    {
+        $rooms = PhongHoc::with('dayNha.khuonVien')->get();
+
+        $grouped = [];
+        $totals = [
+            'total_rooms' => 0,
+            'total_pc'    => 0,
+            'total_cpu'   => 0,
+            'total_kb'    => 0,
+            'total_mouse' => 0,
+            'total_ac'    => 0,
+            'total_fan'   => 0,
+            'total_tv'    => 0,
+            'total_hdmi'  => 0,
+            'total_desk'  => 0,
+        ];
+
+        foreach ($rooms as $r) {
+            $buildingName = $r->dayNha ? $r->dayNha->ten_day_nha : 'Tòa nhà ' . ($r->ma_toa ?? 'B21');
+            $campusName = ($r->dayNha && $r->dayNha->khuonVien) ? $r->dayNha->khuonVien->ma_viet_tat : ($r->ten_khu ?? 'Khu I');
+            $key = "{$buildingName} ({$campusName})";
+
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'building_name' => $buildingName,
+                    'campus_name'   => $campusName,
+                    'rooms_count'   => 0,
+                    'pc'            => 0,
+                    'cpu'           => 0,
+                    'kb'            => 0,
+                    'mouse'         => 0,
+                    'ac'            => 0,
+                    'fan'           => 0,
+                    'tv'            => 0,
+                    'hdmi'          => 0,
+                    'desk'          => 0,
+                ];
+            }
+
+            $grouped[$key]['rooms_count']++;
+            $grouped[$key]['pc']    += (int)($r->so_may_tinh ?? 0);
+            $grouped[$key]['cpu']   += (int)($r->so_cpu ?? 0);
+            $grouped[$key]['kb']    += (int)($r->so_ban_phim ?? 0);
+            $grouped[$key]['mouse'] += (int)($r->so_chuot ?? 0);
+            $grouped[$key]['ac']    += (int)($r->so_may_lanh ?? 0);
+            $grouped[$key]['fan']   += (int)($r->so_quat ?? 0);
+            $grouped[$key]['tv']    += (int)($r->so_tivi ?? 0);
+            $grouped[$key]['hdmi']  += (int)($r->so_cong_hdmi ?? 1);
+            $grouped[$key]['desk']  += (int)($r->so_ban_sinh_vien ?? 20);
+
+            $totals['total_rooms']++;
+            $totals['total_pc']    += (int)($r->so_may_tinh ?? 0);
+            $totals['total_cpu']   += (int)($r->so_cpu ?? 0);
+            $totals['total_kb']    += (int)($r->so_ban_phim ?? 0);
+            $totals['total_mouse'] += (int)($r->so_chuot ?? 0);
+            $totals['total_ac']    += (int)($r->so_may_lanh ?? 0);
+            $totals['total_fan']   += (int)($r->so_quat ?? 0);
+            $totals['total_tv']    += (int)($r->so_tivi ?? 0);
+            $totals['total_hdmi']  += (int)($r->so_cong_hdmi ?? 1);
+            $totals['total_desk']  += (int)($r->so_ban_sinh_vien ?? 20);
+        }
+
+        return view('admin.report_equipment_print', compact('grouped', 'totals', 'rooms'));
     }
 }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
+import '../widgets/user_profile_dialog.dart';
+import '../widgets/equipment_lifecycle_dialog.dart';
+import '../widgets/campus_building_manager_dialog.dart';
 import 'login_screen.dart';
 
 class AdminScreen extends StatefulWidget {
@@ -40,6 +43,12 @@ class _AdminScreenState extends State<AdminScreen> {
   String _roomCampusFilter = 'Tất cả';
   String _roomStatusFilter = 'Tất cả'; // 'Tất cả', 'Đang sử dụng', 'Tạm ngưng hoạt động'
 
+  // Quản lý & Bộ lọc tài khoản
+  List<dynamic> _allUsers = [];
+  String _userRoleFilter = 'Tất cả'; // 'Tất cả', 'Kỹ thuật viên', 'Giảng viên', 'Sinh viên', 'Quản trị viên'
+  String _userSearchQuery = '';
+  final TextEditingController _userSearchCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +63,7 @@ class _AdminScreenState extends State<AdminScreen> {
     final rooms = await _api.getRooms(all: true);
     final campuses = await _api.getCampuses();
     final buildings = await _api.getBuildings();
+    final allUsers = await _api.getUsers();
 
     if (mounted) {
       setState(() {
@@ -63,6 +73,7 @@ class _AdminScreenState extends State<AdminScreen> {
         _rooms = rooms;
         _campuses = campuses;
         _buildings = buildings;
+        _allUsers = allUsers;
         _isLoading = false;
       });
     }
@@ -84,12 +95,14 @@ class _AdminScreenState extends State<AdminScreen> {
     return soPhong;
   }
 
-  String _getRoomBuildingName(Map<String, dynamic> r) {
+  String _getRoomBuildingName(dynamic r) {
+    if (r is! Map) return 'Tòa nhà B21';
     if (r['ten_day_nha'] != null && r['ten_day_nha'].toString().isNotEmpty) {
       return r['ten_day_nha'].toString();
     }
-    if (r['day_nha'] != null && r['day_nha']['ten_day_nha'] != null) {
-      return r['day_nha']['ten_day_nha'].toString();
+    final dn = r['day_nha'] ?? r['dayNha'];
+    if (dn != null && dn is Map && dn['ten_day_nha'] != null) {
+      return dn['ten_day_nha'].toString();
     }
     final qr = (r['ma_qr_dinh_danh'] ?? '').toString();
     final match = RegExp(r'^TVU-([A-Z0-9]+)-', caseSensitive: false).firstMatch(qr);
@@ -99,24 +112,33 @@ class _AdminScreenState extends State<AdminScreen> {
     return 'Tòa nhà B21';
   }
 
-  String _getRoomCampusName(Map<String, dynamic> r) {
-    if (r['ten_khu'] != null && r['ten_khu'].toString().isNotEmpty) {
-      return r['ten_khu'].toString();
+  String _getRoomCampusName(dynamic r) {
+    if (r is! Map) return 'Khu I';
+    final dn = r['day_nha'] ?? r['dayNha'];
+    if (dn != null && dn is Map) {
+      final kv = dn['khuon_vien'] ?? dn['khuonVien'];
+      if (kv != null && kv is Map) {
+        final name = (kv['ma_viet_tat'] ?? kv['ten_khuon_vien'] ?? '').toString().trim();
+        if (name.isNotEmpty) return name;
+      }
     }
-    if (r['day_nha'] != null && r['day_nha']['khuon_vien'] != null && r['day_nha']['khuon_vien']['ma_viet_tat'] != null) {
-      return r['day_nha']['khuon_vien']['ma_viet_tat'].toString();
+    if (r['ten_khu'] != null && r['ten_khu'].toString().trim().isNotEmpty) {
+      return r['ten_khu'].toString().trim();
     }
+    final maToa = (r['ma_toa'] ?? '').toString().toUpperCase();
+    if (maToa == 'A24') return 'Khu II';
     return 'Khu I';
   }
 
-  String _getBuildingCampus(Map<String, dynamic> b) {
-    if (b['khuon_vien'] != null && b['khuon_vien'] is Map) {
-      final kv = b['khuon_vien'];
-      return (kv['ma_viet_tat'] ?? kv['ten_khuon_vien'] ?? 'Khu I').toString().trim();
+  String _getBuildingCampus(dynamic b) {
+    if (b is! Map) return 'Khu I';
+    final kv = b['khuon_vien'] ?? b['khuonVien'];
+    if (kv != null && kv is Map) {
+      final name = (kv['ma_viet_tat'] ?? kv['ten_khuon_vien'] ?? '').toString().trim();
+      if (name.isNotEmpty) return name;
     }
     final maToa = (b['ma_toa'] ?? '').toString().toUpperCase();
-    if (maToa.startsWith('D') || maToa.startsWith('B')) return 'Khu I';
-    if (maToa.startsWith('A') || maToa.startsWith('C')) return 'Khu II';
+    if (maToa == 'A24') return 'Khu II';
     return 'Khu I';
   }
 
@@ -129,7 +151,7 @@ class _AdminScreenState extends State<AdminScreen> {
       }
     }
     for (final b in _buildings) {
-      if (b is Map<String, dynamic>) {
+      if (b is Map) {
         final name = _getBuildingCampus(b);
         if (name.isNotEmpty) list.add(name);
       }
@@ -144,10 +166,10 @@ class _AdminScreenState extends State<AdminScreen> {
       return _buildings;
     }
     return _buildings.where((b) {
-      if (b is! Map<String, dynamic>) return false;
-      final campus = _getBuildingCampus(b).toLowerCase();
-      final filter = _incidentCampusFilter.toLowerCase();
-      return campus == filter || campus.contains(filter) || filter.contains(campus);
+      if (b is! Map) return false;
+      final campus = _getBuildingCampus(b).trim().toLowerCase();
+      final filter = _incidentCampusFilter.trim().toLowerCase();
+      return campus == filter;
     }).toList();
   }
 
@@ -156,10 +178,10 @@ class _AdminScreenState extends State<AdminScreen> {
       return _buildings;
     }
     return _buildings.where((b) {
-      if (b is! Map<String, dynamic>) return false;
-      final campus = _getBuildingCampus(b).toLowerCase();
-      final filter = _roomCampusFilter.toLowerCase();
-      return campus == filter || campus.contains(filter) || filter.contains(campus);
+      if (b is! Map) return false;
+      final campus = _getBuildingCampus(b).trim().toLowerCase();
+      final filter = _roomCampusFilter.trim().toLowerCase();
+      return campus == filter;
     }).toList();
   }
 
@@ -288,9 +310,10 @@ class _AdminScreenState extends State<AdminScreen> {
         return false;
       }
 
-      final room = item['phong_hoc'];
-      final roomNum = (room != null ? (room['so_phong_day_du'] ?? room['so_phong'] ?? '') : '').toString().toLowerCase();
-      final pureRoom = (room != null ? (room['so_phong'] ?? '') : '').toString().toLowerCase();
+      final room = (item['phong_hoc'] ?? item['phongHoc']);
+      final roomMap = room is Map ? room : <String, dynamic>{};
+      final roomNum = (roomMap['so_phong_day_du'] ?? roomMap['so_phong'] ?? '').toString().toLowerCase();
+      final pureRoom = (roomMap['so_phong'] ?? '').toString().toLowerCase();
       final ticketCode = (item['ma_phieu_su_co'] ?? '').toString().toLowerCase();
       final desc = (item['mo_ta_hu_hong'] ?? '').toString().toLowerCase();
       final reporterName = (item['nguoi_bao_cao_info'] != null ? (item['nguoi_bao_cao_info']['ho_va_ten'] ?? '') : '').toString().toLowerCase();
@@ -308,17 +331,17 @@ class _AdminScreenState extends State<AdminScreen> {
 
       // 3. Lọc theo Khu
       if (_incidentCampusFilter != 'Tất cả') {
-        final campusName = room != null ? _getRoomCampusName(room is Map<String, dynamic> ? room : {}).toLowerCase() : '';
-        final cFilter = _incidentCampusFilter.toLowerCase();
-        if (!campusName.contains(cFilter) && !cFilter.contains(campusName)) {
+        final campusName = _getRoomCampusName(roomMap).trim().toLowerCase();
+        final cFilter = _incidentCampusFilter.trim().toLowerCase();
+        if (campusName != cFilter) {
           return false;
         }
       }
 
       // 4. Lọc theo Tòa
       if (_incidentBuildingFilter != 'Tất cả') {
-        final bName = room != null ? _getRoomBuildingName(room is Map<String, dynamic> ? room : {}).toLowerCase() : '';
-        final maToa = (room != null ? (room['ma_toa'] ?? (room['day_nha'] != null ? room['day_nha']['ma_toa'] : '')) : '').toString().toLowerCase();
+        final bName = _getRoomBuildingName(roomMap).toLowerCase();
+        final maToa = (roomMap['ma_toa'] ?? (roomMap['day_nha'] != null ? roomMap['day_nha']['ma_toa'] : '')).toString().toLowerCase();
         final bFilter = _incidentBuildingFilter.toLowerCase().replaceAll('tòa', '').trim();
         final matchesB = bName.contains(bFilter) ||
             maToa == bFilter ||
@@ -347,10 +370,9 @@ class _AdminScreenState extends State<AdminScreen> {
 
       // 1. Lọc theo Khuôn viên (Khu I, Khu II, Khu Hòa Ân...)
       if (_roomCampusFilter != 'Tất cả') {
-        final campus = _getRoomCampusName(r).toLowerCase();
-        final cFilter = _roomCampusFilter.toLowerCase();
-        final matchesCampus = campus.contains(cFilter) || cFilter.contains(campus);
-        if (!matchesCampus) return false;
+        final campus = _getRoomCampusName(r).trim().toLowerCase();
+        final cFilter = _roomCampusFilter.trim().toLowerCase();
+        if (campus != cFilter) return false;
       }
 
       // 2. Lọc theo Tòa nhà (Tòa B21, Tòa D71...)
@@ -1820,6 +1842,246 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  // 7.1 MODAL CHỈNH SỬA TÀI KHOẢN
+  void _showEditUserDialog(Map<String, dynamic> user) {
+    String selectedRole = user['vai_tro'] ?? 'Sinh viên';
+    final nameCtrl = TextEditingController(text: user['ho_va_ten'] ?? '');
+    final emailCtrl = TextEditingController(text: user['email_tvu'] ?? '');
+    final phoneCtrl = TextEditingController(text: user['so_dien_thoai'] ?? '');
+    final unitCtrl = TextEditingController(text: user['lop_hoac_don_vi'] ?? '');
+    final newPassCtrl = TextEditingController();
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.edit, color: Color(0xFF0D47A1)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'SỬA TÀI KHOẢN (${user['ten_dang_nhap']})',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: ['Sinh viên', 'Giảng viên', 'Kỹ thuật viên', 'Quản trị viên'].contains(selectedRole)
+                      ? selectedRole
+                      : 'Sinh viên',
+                  decoration: const InputDecoration(labelText: 'Vai trò tài khoản *', border: OutlineInputBorder(), isDense: true),
+                  items: ['Sinh viên', 'Giảng viên', 'Kỹ thuật viên', 'Quản trị viên'].map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+                  onChanged: (val) => setDlgState(() => selectedRole = val!),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Họ và tên *', border: OutlineInputBorder(), isDense: true),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: emailCtrl,
+                  decoration: const InputDecoration(labelText: 'Email TVU', border: OutlineInputBorder(), isDense: true),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'Số điện thoại', border: OutlineInputBorder(), isDense: true),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: unitCtrl,
+                  decoration: const InputDecoration(labelText: 'Lớp / Khoa / Đơn vị công tác', border: OutlineInputBorder(), isDense: true),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: newPassCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Mật khẩu mới (bỏ trống nếu không đổi)',
+                    hintText: 'Nhập mật khẩu mới...',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white),
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      final fName = nameCtrl.text.trim();
+                      if (fName.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Họ và tên không được để trống!')));
+                        return;
+                      }
+                      setDlgState(() => isSaving = true);
+                      final res = await _api.updateUser(
+                        user['ma_nguoi_dung'],
+                        fullName: fName,
+                        role: selectedRole,
+                        email: emailCtrl.text.trim(),
+                        phone: phoneCtrl.text.trim(),
+                        unitOrClass: unitCtrl.text.trim(),
+                        newPassword: newPassCtrl.text.trim().isNotEmpty ? newPassCtrl.text.trim() : null,
+                      );
+                      setDlgState(() => isSaving = false);
+
+                      if (!mounted) return;
+                      Navigator.pop(ctx);
+                      if (res['status'] == 'success') {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('🎉 ${res['message']}'), backgroundColor: Colors.green),
+                        );
+                        _loadAllData();
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(res['message'] ?? 'Thất bại'), backgroundColor: Colors.red),
+                        );
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('Lưu Thay Đổi'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 7.2 MODAL ĐẶT LẠI MẬT KHẨU
+  void _showResetPasswordDialog(Map<String, dynamic> user) {
+    final passCtrl = TextEditingController(text: '123456');
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.key, color: Colors.orange),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'CẤP LẠI MẬT KHẨU (${user['ten_dang_nhap']})',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Đặt lại mật khẩu cho tài khoản: ${user['ho_va_ten']}'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Mật khẩu mới *',
+                  hintText: 'Nhập mật khẩu mới hoặc để mặc định 123456',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text('Gợi ý: Mặc định là "123456"', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white),
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      final newPass = passCtrl.text.trim();
+                      if (newPass.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mật khẩu không được để trống!')));
+                        return;
+                      }
+                      setDlgState(() => isSaving = true);
+                      final res = await _api.resetUserPassword(user['ma_nguoi_dung'], newPassword: newPass);
+                      setDlgState(() => isSaving = false);
+
+                      if (!mounted) return;
+                      Navigator.pop(ctx);
+                      if (res['status'] == 'success') {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('🔑 ${res['message']}'), backgroundColor: Colors.green),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(res['message'] ?? 'Thất bại'), backgroundColor: Colors.red),
+                        );
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('Xác Nhận Đổi MK'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 7.3 XÁC NHẬN XÓA TÀI KHOẢN
+  void _confirmDeleteUser(Map<String, dynamic> user) {
+    final name = user['ho_va_ten'] ?? 'Người dùng';
+    final username = user['ten_dang_nhap'] ?? '';
+    final id = user['ma_nguoi_dung'];
+    if (id == null) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            SizedBox(width: 8),
+            Text('XÁC NHẬN XÓA TÀI KHOẢN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text('Bạn có chắc chắn muốn xóa tài khoản "$name" ($username) khỏi hệ thống quản lý?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final res = await _api.deleteUser(id);
+              if (res['status'] == 'success') {
+                _loadAllData();
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Đã xóa tài khoản'), backgroundColor: Colors.green));
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Xóa thất bại'), backgroundColor: Colors.red));
+              }
+            },
+            child: const Text('Xóa Tài Khoản'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ==============================================================
   // TAB 1: GIAO DIỆN CHUYÊN DỤNG QUẢN LÝ PHÒNG & THIẾT BỊ BÊN ADMIN
   // ==============================================================
@@ -1914,6 +2176,22 @@ class _AdminScreenState extends State<AdminScreen> {
                       ),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal.shade50,
+                          foregroundColor: Colors.teal.shade900,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.tune, size: 16),
+                        label: const Text('Quản lý Khu & Tòa', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (_) => CampusBuildingManagerDialog(onChanged: _loadAllData),
+                          );
+                        },
+                      ),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.amber.shade400,
                           foregroundColor: const Color(0xFF0D47A1),
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -1950,6 +2228,16 @@ class _AdminScreenState extends State<AdminScreen> {
                     ],
                   ),
                 ),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: Colors.red.shade700,
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf, size: 16),
+                  label: const Text('Xuất PDF', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  onPressed: _openEquipmentReportPdf,
+                ),
+                const SizedBox(width: 4),
                 TextButton.icon(
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
@@ -2290,6 +2578,24 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  void _openEquipmentReportPdf() async {
+    final serverBase = ApiService.baseUrl.replaceAll('/api', '');
+    final url = '$serverBase/admin/reports/equipment-print';
+    try {
+      final uri = Uri.parse(url);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể mở liên kết báo cáo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showEquipmentBreakdownDialog() {
     // Nhóm danh sách phòng theo Tòa nhà & Khu
     final Map<String, List<dynamic>> groupedByBuilding = {};
@@ -2400,13 +2706,25 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 14),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  ElevatedButton(
+                  ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0D47A1),
+                      backgroundColor: Colors.red.shade700,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                    icon: const Icon(Icons.picture_as_pdf, size: 18),
+                    label: const Text('Xuất File Báo Cáo PDF / In', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    onPressed: _openEquipmentReportPdf,
+                  ),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.grey.shade700,
+                      side: BorderSide(color: Colors.grey.shade300),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     ),
                     onPressed: () => Navigator.pop(ctx),
                     child: const Text('Đóng'),
@@ -2648,6 +2966,32 @@ class _AdminScreenState extends State<AdminScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    icon: const Icon(Icons.history_edu, size: 17),
+                    label: const Text('Vòng Đời & Bảo Trì', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    onPressed: () {
+                      final roomId = int.tryParse((r['ma_phong_hoc'] ?? 0).toString()) ?? 0;
+                      if (roomId > 0) {
+                        showDialog(
+                          context: context,
+                          builder: (_) => EquipmentLifecycleDialog(
+                            roomId: roomId,
+                            roomName: 'Phòng $soPhong',
+                            canEdit: true,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
                 IconButton(
                   style: IconButton.styleFrom(
                     backgroundColor: (r['dang_su_dung'] == 1 || r['dang_su_dung'] == true)
@@ -2710,10 +3054,62 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  // Danh sách tài khoản đã qua bộ lọc vai trò và tìm kiếm
+  List<dynamic> get _filteredUsers {
+    return _allUsers.where((u) {
+      // 1. Lọc theo vai trò
+      if (_userRoleFilter != 'Tất cả' && (u['vai_tro'] ?? '') != _userRoleFilter) {
+        return false;
+      }
+
+      // 2. Tìm kiếm theo tên đăng nhập, họ tên, email, sđt, đơn vị
+      final q = _userSearchQuery.trim().toLowerCase();
+      if (q.isNotEmpty) {
+        final uName = (u['ten_dang_nhap'] ?? '').toString().toLowerCase();
+        final fName = (u['ho_va_ten'] ?? '').toString().toLowerCase();
+        final email = (u['email_tvu'] ?? '').toString().toLowerCase();
+        final phone = (u['so_dien_thoai'] ?? '').toString().toLowerCase();
+        final unit = (u['lop_hoac_don_vi'] ?? '').toString().toLowerCase();
+        final matches = uName.contains(q) || fName.contains(q) || email.contains(q) || phone.contains(q) || unit.contains(q);
+        if (!matches) return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
+  Color _getUserRoleColor(String? role) {
+    switch (role) {
+      case 'Quản trị viên': return Colors.red.shade800;
+      case 'Kỹ thuật viên': return const Color(0xFF1B5E20);
+      case 'Giảng viên': return const Color(0xFF0D47A1);
+      case 'Sinh viên': return Colors.teal.shade800;
+      default: return Colors.blueGrey;
+    }
+  }
+
+  IconData _getUserRoleIcon(String? role) {
+    switch (role) {
+      case 'Quản trị viên': return Icons.admin_panel_settings;
+      case 'Kỹ thuật viên': return Icons.handyman;
+      case 'Giảng viên': return Icons.school;
+      case 'Sinh viên': return Icons.person;
+      default: return Icons.account_circle;
+    }
+  }
+
   // ==============================================================
   // TAB 2: QUẢN LÝ TÀI KHOẢN & KỸ THUẬT VIÊN
   // ==============================================================
   Widget _buildUserManagementTab() {
+    final filteredUsers = _filteredUsers;
+
+    final totalCount = _allUsers.length;
+    final ktvCount = _allUsers.where((u) => u['vai_tro'] == 'Kỹ thuật viên').length;
+    final gvCount = _allUsers.where((u) => u['vai_tro'] == 'Giảng viên').length;
+    final svCount = _allUsers.where((u) => u['vai_tro'] == 'Sinh viên').length;
+    final adminCount = _allUsers.where((u) => u['vai_tro'] == 'Quản trị viên').length;
+
     return RefreshIndicator(
       onRefresh: _loadAllData,
       child: SingleChildScrollView(
@@ -2745,12 +3141,12 @@ class _AdminScreenState extends State<AdminScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'TÀI KHOẢN & KỸ THUẬT VIÊN',
+                          'TÀI KHOẢN & PHÂN QUYỀN',
                           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'Quản lý danh sách KTV, Giảng viên và Sinh viên TVU',
+                          'Quản lý, thêm, sửa, đổi mật khẩu và phân loại tài khoản',
                           style: TextStyle(color: Colors.white70, fontSize: 11.5),
                         ),
                       ],
@@ -2771,34 +3167,234 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
             ),
 
-            const SizedBox(height: 16),
-            const Text('Danh Sách Kỹ Thuật Viên Tiếp Nhận Xử Lý:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF334155))),
+            const SizedBox(height: 14),
+
+            // THANH TÌM KIẾM TÀI KHOẢN
+            TextField(
+              controller: _userSearchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Tìm theo họ tên, tên đăng nhập, email, SĐT, lớp/đơn vị...',
+                hintStyle: TextStyle(fontSize: 12.5, color: Colors.grey.shade500),
+                prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF880E4F)),
+                suffixIcon: _userSearchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _userSearchCtrl.clear();
+                          setState(() => _userSearchQuery = '');
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF880E4F), width: 1.5),
+                ),
+                isDense: true,
+              ),
+              onChanged: (val) => setState(() => _userSearchQuery = val),
+            ),
+
             const SizedBox(height: 10),
 
-            if (_technicians.isEmpty)
-              const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('Chưa có kỹ thuật viên nào')))
+            // BỘ LỌC PHÂN LOẠI VAI TRÒ TÀI KHOẢN (HÀNG NGANG)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildUserRoleChip('Tất cả', totalCount),
+                  _buildUserRoleChip('Kỹ thuật viên', ktvCount),
+                  _buildUserRoleChip('Giảng viên', gvCount),
+                  _buildUserRoleChip('Sinh viên', svCount),
+                  _buildUserRoleChip('Quản trị viên', adminCount),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // DANH SÁCH TÀI KHOẢN
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Danh Sách Tài Khoản (${filteredUsers.length}/$totalCount):',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                ),
+                if (_userRoleFilter != 'Tất cả' || _userSearchQuery.isNotEmpty)
+                  TextButton.icon(
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact, foregroundColor: Colors.red.shade700),
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Đặt lại bộ lọc', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      _userSearchCtrl.clear();
+                      setState(() {
+                        _userRoleFilter = 'Tất cả';
+                        _userSearchQuery = '';
+                      });
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            if (_allUsers.isEmpty)
+              const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('Chưa có tài khoản nào')))
+            else if (filteredUsers.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      Icon(Icons.person_search, size: 48, color: Colors.grey.shade400),
+                      const SizedBox(height: 8),
+                      Text('Không tìm thấy tài khoản nào khớp với bộ lọc', style: TextStyle(color: Colors.grey.shade600, fontSize: 13.5)),
+                    ],
+                  ),
+                ),
+              )
             else
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: _technicians.length,
+                itemCount: filteredUsers.length,
                 separatorBuilder: (c, i) => const SizedBox(height: 8),
                 itemBuilder: (context, idx) {
-                  final ktv = _technicians[idx];
+                  final u = filteredUsers[idx];
+                  final role = u['vai_tro'] ?? 'Sinh viên';
+                  final roleColor = _getUserRoleColor(role);
+                  final roleIcon = _getUserRoleIcon(role);
+                  final isCurrentUser = widget.user['ma_nguoi_dung'] == u['ma_nguoi_dung'];
+
                   return Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFF0D47A1),
-                        foregroundColor: Colors.white,
-                        child: Text(ktv['ho_va_ten'] != null && ktv['ho_va_ten'].isNotEmpty ? ktv['ho_va_ten'][0] : 'K'),
-                      ),
-                      title: Text(ktv['ho_va_ten'] ?? 'KTV', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: Text('SĐT: ${ktv['so_dien_thoai'] ?? 'Chưa có'} • ${ktv['lop_hoac_don_vi'] ?? 'Bộ phận kỹ thuật TVU'}'),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
-                        child: const Text('Kỹ thuật viên', style: TextStyle(color: Color(0xFF0D47A1), fontSize: 11, fontWeight: FontWeight.bold)),
+                    elevation: 1.5,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: roleColor,
+                                foregroundColor: Colors.white,
+                                child: Icon(roleIcon, size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            u['ho_va_ten'] ?? 'Người dùng',
+                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (isCurrentUser) ...[
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(4)),
+                                            child: Text('Bạn', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Tài khoản: ${u['ten_dang_nhap']} • ${u['lop_hoac_don_vi'] ?? 'TVU'}',
+                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: roleColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: roleColor.withValues(alpha: 0.3)),
+                                ),
+                                child: Text(
+                                  role,
+                                  style: TextStyle(color: roleColor, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.phone, size: 14, color: Colors.grey.shade600),
+                                        const SizedBox(width: 4),
+                                        Text('${u['so_dien_thoai'] ?? 'Chưa cập nhật'}', style: TextStyle(fontSize: 12, color: Colors.grey.shade800)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(Icons.email_outlined, size: 14, color: Colors.grey.shade600),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            '${u['email_tvu'] ?? 'Chưa cập nhật'}',
+                                            style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Nút Đổi / Cấp lại Mật khẩu
+                                  IconButton(
+                                    icon: const Icon(Icons.key, color: Colors.orange, size: 20),
+                                    tooltip: 'Cấp lại mật khẩu',
+                                    onPressed: () => _showResetPasswordDialog(u),
+                                  ),
+                                  // Nút Sửa tài khoản
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, color: Color(0xFF0D47A1), size: 20),
+                                    tooltip: 'Sửa thông tin',
+                                    onPressed: () => _showEditUserDialog(u),
+                                  ),
+                                  // Nút Xóa tài khoản
+                                  if (!isCurrentUser)
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                                      tooltip: 'Xóa tài khoản',
+                                      onPressed: () => _confirmDeleteUser(u),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -2806,6 +3402,34 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildUserRoleChip(String label, int count) {
+    final bool isSelected = _userRoleFilter == label;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text('$label ($count)'),
+        selected: isSelected,
+        onSelected: (val) {
+          setState(() => _userRoleFilter = label);
+        },
+        selectedColor: const Color(0xFF880E4F),
+        backgroundColor: Colors.white,
+        checkmarkColor: Colors.white,
+        showCheckmark: isSelected,
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.black87,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          fontSize: 12,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: isSelected ? const Color(0xFF880E4F) : Colors.grey.shade300),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       ),
     );
   }
@@ -3710,6 +4334,28 @@ class _AdminScreenState extends State<AdminScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: CircleAvatar(
+              radius: 14,
+              backgroundColor: Colors.white24,
+              backgroundImage: (widget.user['avatar'] != null && widget.user['avatar'].toString().isNotEmpty)
+                  ? NetworkImage(widget.user['avatar'].toString())
+                  : null,
+              child: (widget.user['avatar'] == null || widget.user['avatar'].toString().isEmpty)
+                  ? const Icon(Icons.person, size: 18, color: Colors.white)
+                  : null,
+            ),
+            tooltip: 'Tài khoản & Đổi mật khẩu',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (_) => UserProfileDialog(
+                  user: widget.user,
+                  onAvatarUpdated: (_) => setState(() {}),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadAllData,

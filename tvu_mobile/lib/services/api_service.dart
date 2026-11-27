@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
@@ -556,6 +557,222 @@ class ApiService {
       return {'status': 'error', 'message': 'Lỗi kết nối: ${e.message}'};
     } catch (e) {
       return {'status': 'error', 'message': 'Lỗi hệ thống: $e'};
+    }
+  }
+
+  // 14c. Admin: Lấy danh sách toàn bộ người dùng
+  Future<List<dynamic>> getUsers({String? role, String? search}) async {
+    try {
+      final query = <String, dynamic>{};
+      if (role != null && role != 'Tất cả') query['vai_tro'] = role;
+      if (search != null && search.isNotEmpty) query['search'] = search;
+      final response = await _dio.get('/admin/users', queryParameters: query);
+      if (response.data['status'] == 'success') {
+        return response.data['data'] as List<dynamic>;
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // 14d. Admin: Cập nhật thông tin tài khoản
+  Future<Map<String, dynamic>> updateUser(
+    int userId, {
+    required String fullName,
+    required String role,
+    String? email,
+    String? phone,
+    String? unitOrClass,
+    int? isActive,
+    String? newPassword,
+  }) async {
+    try {
+      final data = <String, dynamic>{
+        'ho_va_ten': fullName,
+        'vai_tro': role,
+      };
+      if (email != null) data['email_tvu'] = email;
+      if (phone != null) data['so_dien_thoai'] = phone;
+      if (unitOrClass != null) data['lop_hoac_don_vi'] = unitOrClass;
+      if (isActive != null) data['dang_hoat_dong'] = isActive;
+      if (newPassword != null && newPassword.isNotEmpty) {
+        data['mat_khau_moi'] = newPassword;
+      }
+
+      final response = await _dio.put('/admin/users/$userId', data: data);
+      return response.data;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Lỗi cập nhật người dùng: $e'};
+    }
+  }
+
+  // 14e. Admin: Đặt lại mật khẩu tài khoản
+  Future<Map<String, dynamic>> resetUserPassword(int userId, {String? newPassword}) async {
+    try {
+      final response = await _dio.post('/admin/users/$userId/reset-password', data: {
+        'mat_khau_moi': newPassword ?? '123456',
+      });
+      return response.data;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Lỗi đặt lại mật khẩu: $e'};
+    }
+  }
+
+  // 14f. Admin: Xóa tài khoản người dùng
+  Future<Map<String, dynamic>> deleteUser(int userId) async {
+    try {
+      final response = await _dio.delete('/admin/users/$userId');
+      return response.data;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Lỗi xóa người dùng: $e'};
+    }
+  }
+
+  // 14g. Cá nhân: Cập nhật ảnh đại diện (Avatar)
+  Future<Map<String, dynamic>> updateAvatar(XFile image) async {
+    try {
+      final bytes = await image.readAsBytes();
+      final formData = FormData.fromMap({
+        'avatar': MultipartFile.fromBytes(
+          bytes,
+          filename: image.name.isNotEmpty ? image.name : 'avatar.jpg',
+        ),
+      });
+      final response = await _dio.post('/profile/avatar', data: formData);
+      return response.data;
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.data is Map<String, dynamic>) {
+        return e.response!.data as Map<String, dynamic>;
+      }
+      return {'status': 'error', 'message': 'Lỗi tải ảnh đại diện: ${e.message}'};
+    } catch (e) {
+      return {'status': 'error', 'message': 'Lỗi tải ảnh đại diện: $e'};
+    }
+  }
+
+  // 14h. Cá nhân: Tự đổi mật khẩu
+  Future<Map<String, dynamic>> changePassword(String oldPassword, String newPassword) async {
+    try {
+      final response = await _dio.post('/profile/change-password', data: {
+        'old_password': oldPassword,
+        'new_password': newPassword,
+      });
+      return response.data;
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.data is Map<String, dynamic>) {
+        return e.response!.data as Map<String, dynamic>;
+      }
+      return {'status': 'error', 'message': 'Lỗi đổi mật khẩu: ${e.message}'};
+    } catch (e) {
+      return {'status': 'error', 'message': 'Lỗi đổi mật khẩu: $e'};
+    }
+  }
+
+  // 14i. Vòng đời & Bảo trì thiết bị theo phòng
+  Future<Map<String, dynamic>> getRoomEquipments(int roomId) async {
+    try {
+      final response = await _dio.get('/rooms/$roomId/equipments');
+      return response.data;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Lỗi tải thiết bị: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> addEquipment(Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.post('/equipments', data: data);
+      return response.data;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Lỗi thêm thiết bị: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> addEquipmentMaintenance(int equipmentId, Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.post('/equipments/$equipmentId/maintenance', data: data);
+      return response.data;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Lỗi ghi nhận bảo trì: $e'};
+    }
+  }
+
+  Future<List<dynamic>> getMaintenanceDue() async {
+    try {
+      final response = await _dio.get('/equipments/maintenance-due');
+      if (response.data['status'] == 'success') {
+        return response.data['data'] as List<dynamic>;
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // 14j. Admin: Sửa, Ẩn/Hiện, Xóa Khuôn viên & Tòa nhà
+  Future<Map<String, dynamic>> updateCampus(int id, Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.put('/admin/campuses/$id', data: data);
+      return response.data;
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.data is Map<String, dynamic>) {
+        return e.response!.data as Map<String, dynamic>;
+      }
+      return {'status': 'error', 'message': 'Lỗi cập nhật khu: ${e.message}'};
+    }
+  }
+
+  Future<Map<String, dynamic>> toggleCampusStatus(int id) async {
+    try {
+      final response = await _dio.post('/admin/campuses/$id/toggle-status');
+      return response.data;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Lỗi đổi trạng thái khu: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteCampus(int id) async {
+    try {
+      final response = await _dio.delete('/admin/campuses/$id');
+      return response.data;
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.data is Map<String, dynamic>) {
+        return e.response!.data as Map<String, dynamic>;
+      }
+      return {'status': 'error', 'message': 'Lỗi xóa khu: ${e.message}'};
+    }
+  }
+
+  Future<Map<String, dynamic>> updateBuilding(int id, Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.put('/admin/buildings/$id', data: data);
+      return response.data;
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.data is Map<String, dynamic>) {
+        return e.response!.data as Map<String, dynamic>;
+      }
+      return {'status': 'error', 'message': 'Lỗi cập nhật tòa: ${e.message}'};
+    }
+  }
+
+  Future<Map<String, dynamic>> toggleBuildingStatus(int id) async {
+    try {
+      final response = await _dio.post('/admin/buildings/$id/toggle-status');
+      return response.data;
+    } catch (e) {
+      return {'status': 'error', 'message': 'Lỗi đổi trạng thái tòa: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteBuilding(int id) async {
+    try {
+      final response = await _dio.delete('/admin/buildings/$id');
+      return response.data;
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.data is Map<String, dynamic>) {
+        return e.response!.data as Map<String, dynamic>;
+      }
+      return {'status': 'error', 'message': 'Lỗi xóa tòa: ${e.message}'};
     }
   }
 

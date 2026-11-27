@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/qr_scanner_modal.dart';
+import '../widgets/user_profile_dialog.dart';
 import 'create_report_screen.dart';
 import 'login_screen.dart';
 
@@ -17,6 +18,8 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
   final ApiService _api = ApiService();
   int _currentTabIndex = 0; // 0: Trang chủ (Danh sách sự cố), 1: Biểu mẫu báo cáo
   List<dynamic> _incidents = [];
+  List<dynamic> _buildings = [];
+  List<dynamic> _campuses = [];
   bool _isLoading = true;
 
   // Phòng được quét từ mã QR để chuyển sang tab Báo Cáo
@@ -24,6 +27,12 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
 
   // Bộ lọc trạng thái: 'all', 'Chờ tiếp nhận', 'Đã phân công', 'Đang xử lý', 'Hoàn thành'
   String _selectedFilter = 'all';
+
+  // Bộ lọc tìm kiếm phòng, khu, tòa
+  String _searchQuery = '';
+  String _campusFilter = 'Tất cả';
+  String _buildingFilter = 'Tất cả';
+  final TextEditingController _searchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -33,13 +42,224 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final incidents = await _api.getMyIncidents();
+    final results = await Future.wait([
+      _api.getMyIncidents(),
+      _api.getBuildings(),
+      _api.getCampuses(),
+    ]);
     if (mounted) {
       setState(() {
-        _incidents = incidents;
+        _incidents = results[0] as List<dynamic>;
+        _buildings = results[1] as List<dynamic>;
+        _campuses = results[2] as List<dynamic>;
         _isLoading = false;
       });
     }
+  }
+
+  String _getRoomCampusName(dynamic r) {
+    if (r is! Map) return 'Khu I';
+    final dn = r['day_nha'] ?? r['dayNha'];
+    if (dn != null && dn is Map) {
+      final kv = dn['khuon_vien'] ?? dn['khuonVien'];
+      if (kv != null && kv is Map) {
+        final name = (kv['ma_viet_tat'] ?? kv['ten_khuon_vien'] ?? '').toString().trim();
+        if (name.isNotEmpty) return name;
+      }
+    }
+    if (r['ten_khu'] != null && r['ten_khu'].toString().trim().isNotEmpty) {
+      return r['ten_khu'].toString().trim();
+    }
+    final maToa = (r['ma_toa'] ?? '').toString().toUpperCase();
+    if (maToa == 'A24') return 'Khu II';
+    return 'Khu I';
+  }
+
+  String _getRoomBuildingName(dynamic r) {
+    if (r is! Map) return 'Tòa nhà B21';
+    if (r['ten_day_nha'] != null && r['ten_day_nha'].toString().isNotEmpty) {
+      return r['ten_day_nha'].toString();
+    }
+    final dn = r['day_nha'] ?? r['dayNha'];
+    if (dn != null && dn is Map && dn['ten_day_nha'] != null) {
+      return dn['ten_day_nha'].toString();
+    }
+    final qr = (r['ma_qr_dinh_danh'] ?? '').toString();
+    final match = RegExp(r'^TVU-([A-Z0-9]+)-', caseSensitive: false).firstMatch(qr);
+    if (match != null) {
+      return 'Tòa nhà ${match.group(1)}';
+    }
+    return 'Tòa nhà B21';
+  }
+
+  String _getBuildingCampus(dynamic b) {
+    if (b is! Map) return 'Khu I';
+    final kv = b['khuon_vien'] ?? b['khuonVien'];
+    if (kv != null && kv is Map) {
+      final name = (kv['ma_viet_tat'] ?? kv['ten_khuon_vien'] ?? '').toString().trim();
+      if (name.isNotEmpty) return name;
+    }
+    final maToa = (b['ma_toa'] ?? '').toString().toUpperCase();
+    if (maToa == 'A24') return 'Khu II';
+    return 'Khu I';
+  }
+
+  List<String> get _uniqueCampusList {
+    final Set<String> list = {};
+    for (final c in _campuses) {
+      if (c is Map) {
+        final name = (c['ma_viet_tat'] ?? c['ten_khuon_vien'] ?? '').toString().trim();
+        if (name.isNotEmpty) list.add(name);
+      }
+    }
+    for (final b in _buildings) {
+      if (b is Map) {
+        final name = _getBuildingCampus(b);
+        if (name.isNotEmpty) list.add(name);
+      }
+    }
+    if (list.isEmpty) return ['Khu I', 'Khu II'];
+    final sorted = list.toList()..sort();
+    return sorted;
+  }
+
+  List<dynamic> get _availableBuildings {
+    if (_campusFilter == 'Tất cả') {
+      return _buildings;
+    }
+    return _buildings.where((b) {
+      if (b is! Map) return false;
+      final campus = _getBuildingCampus(b).trim().toLowerCase();
+      final filter = _campusFilter.trim().toLowerCase();
+      return campus == filter;
+    }).toList();
+  }
+
+  bool get _hasActiveFilters =>
+      _searchQuery.isNotEmpty ||
+      _campusFilter != 'Tất cả' ||
+      _buildingFilter != 'Tất cả' ||
+      _selectedFilter != 'all';
+
+  void _resetFilters() {
+    _searchCtrl.clear();
+    setState(() {
+      _searchQuery = '';
+      _selectedFilter = 'all';
+      _campusFilter = 'Tất cả';
+      _buildingFilter = 'Tất cả';
+    });
+  }
+
+  Widget _buildFilterRow({
+    required String icon,
+    required String title,
+    required Color badgeColor,
+    required Color badgeTextColor,
+    required Widget child,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 76,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+            decoration: BoxDecoration(
+              color: badgeColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: badgeTextColor.withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(icon, style: const TextStyle(fontSize: 12)),
+                const SizedBox(width: 4),
+                Text(
+                  title,
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: badgeTextColor),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCampusChip(String label) {
+    final bool isSelected = _campusFilter == label;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: FilterChip(
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? Colors.white : Colors.black87,
+          ),
+        ),
+        selected: isSelected,
+        onSelected: (val) {
+          setState(() {
+            _campusFilter = label;
+            _buildingFilter = 'Tất cả';
+          });
+        },
+        selectedColor: const Color(0xFF0D47A1),
+        backgroundColor: Colors.white,
+        checkmarkColor: Colors.white,
+        showCheckmark: isSelected,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(
+            color: isSelected ? const Color(0xFF0D47A1) : Colors.grey.shade300,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  Widget _buildBuildingChip(String label) {
+    final bool isSelected = _buildingFilter == label;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: FilterChip(
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? Colors.white : Colors.black87,
+          ),
+        ),
+        selected: isSelected,
+        onSelected: (val) {
+          setState(() => _buildingFilter = label);
+        },
+        selectedColor: const Color(0xFF0D47A1),
+        backgroundColor: Colors.white,
+        checkmarkColor: Colors.white,
+        showCheckmark: isSelected,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(
+            color: isSelected ? const Color(0xFF0D47A1) : Colors.grey.shade300,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
   }
 
   // Mở Camera Quét Mã QR -> Tự động chuyển sang Báo Cáo Mới theo phòng vừa quét
@@ -116,11 +336,58 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
 
   // Lọc danh sách sự cố theo bộ lọc
   List<dynamic> _getFilteredIncidents() {
-    if (_selectedFilter == 'all') return _incidents;
-    if (_selectedFilter == 'Đã phân công') {
-      return _incidents.where((item) => item['ktv_info'] != null).toList();
-    }
-    return _incidents.where((item) => item['trang_thai'] == _selectedFilter).toList();
+    return _incidents.where((item) {
+      // 1. Lọc theo trạng thái
+      if (_selectedFilter != 'all') {
+        if (_selectedFilter == 'Đã phân công') {
+          if (item['ktv_info'] == null) return false;
+        } else if (item['trang_thai'] != _selectedFilter) {
+          return false;
+        }
+      }
+
+      final room = item['phong_hoc'] ?? item['phongHoc'];
+      final roomMap = room is Map ? room : <String, dynamic>{};
+      final roomNum = (roomMap['so_phong_day_du'] ?? roomMap['so_phong'] ?? '').toString().toLowerCase();
+      final pureRoom = (roomMap['so_phong'] ?? '').toString().toLowerCase();
+      final ticketCode = (item['ma_phieu_su_co'] ?? '').toString().toLowerCase();
+      final desc = (item['mo_ta_hu_hong'] ?? '').toString().toLowerCase();
+      final pos = (item['vi_tri_trong_phong'] ?? '').toString().toLowerCase();
+
+      // 2. Tìm kiếm theo số phòng, mã phiếu, mô tả
+      final q = _searchQuery.trim().toLowerCase();
+      if (q.isNotEmpty) {
+        final matches = roomNum.contains(q) ||
+            pureRoom.contains(q) ||
+            ticketCode.contains(q) ||
+            desc.contains(q) ||
+            pos.contains(q);
+        if (!matches) return false;
+      }
+
+      // 3. Lọc theo Khu
+      if (_campusFilter != 'Tất cả') {
+        final campusName = _getRoomCampusName(roomMap).trim().toLowerCase();
+        final cFilter = _campusFilter.trim().toLowerCase();
+        if (campusName != cFilter) {
+          return false;
+        }
+      }
+
+      // 4. Lọc theo Tòa
+      if (_buildingFilter != 'Tất cả') {
+        final bName = _getRoomBuildingName(roomMap).toLowerCase();
+        final maToa = (roomMap['ma_toa'] ?? (roomMap['day_nha'] != null ? roomMap['day_nha']['ma_toa'] : '')).toString().toLowerCase();
+        final bFilter = _buildingFilter.toLowerCase().replaceAll('tòa', '').trim();
+        final matchesB = bName.contains(bFilter) ||
+            maToa == bFilter ||
+            'tòa $maToa' == _buildingFilter.toLowerCase() ||
+            bName.contains(_buildingFilter.toLowerCase());
+        if (!matchesB) return false;
+      }
+
+      return true;
+    }).toList();
   }
 
   // Xem lịch sử chi tiết tiến độ xử lý của phiếu sự cố
@@ -333,6 +600,28 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
         elevation: 0,
         actions: [
           IconButton(
+            icon: CircleAvatar(
+              radius: 14,
+              backgroundColor: Colors.white24,
+              backgroundImage: (widget.user['avatar'] != null && widget.user['avatar'].toString().isNotEmpty)
+                  ? NetworkImage(widget.user['avatar'].toString())
+                  : null,
+              child: (widget.user['avatar'] == null || widget.user['avatar'].toString().isEmpty)
+                  ? const Icon(Icons.person, size: 18, color: Colors.white)
+                  : null,
+            ),
+            tooltip: 'Tài khoản & Đổi mật khẩu',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (_) => UserProfileDialog(
+                  user: widget.user,
+                  onAvatarUpdated: (_) => setState(() {}),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadData,
             tooltip: 'Làm mới dữ liệu',
@@ -511,6 +800,122 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                   _buildFilterChip('Đã phân công', 'Đã phân công', _incidents.where((i) => i['ktv_info'] != null).length),
                   _buildFilterChip('Đang xử lý', 'Đang xử lý', _incidents.where((i) => i['trang_thai'] == 'Đang xử lý').length),
                   _buildFilterChip('Hoàn thành', 'Hoàn thành', _incidents.where((i) => i['trang_thai'] == 'Hoàn thành').length),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // KHU VỰC BỘ LỌC TÌM KIẾM SỐ PHÒNG, KHU VÀ TÒA NHÀ
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2)),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. THANH TÌM KIẾM SỐ PHÒNG, MÃ PHIẾU, MÔ TẢ
+                  TextField(
+                    controller: _searchCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'Tìm theo số phòng (VD: B21.102, 102...), mã phiếu, mô tả...',
+                      hintStyle: TextStyle(fontSize: 12.5, color: Colors.grey.shade500),
+                      prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF0D47A1)),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF0D47A1), width: 1.5),
+                      ),
+                      isDense: true,
+                    ),
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // 2. HÀNG KHUÔN VIÊN
+                  _buildFilterRow(
+                    icon: '🏛️',
+                    title: 'Khu',
+                    badgeColor: Colors.indigo.shade50,
+                    badgeTextColor: const Color(0xFF0D47A1),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildCampusChip('Tất cả'),
+                          ..._uniqueCampusList.map((name) => _buildCampusChip(name)),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // 3. HÀNG TÒA NHÀ (CHỈ HIỂN THỊ CÁC TÒA THUỘC KHU ĐÃ CHỌN)
+                  _buildFilterRow(
+                    icon: '🏢',
+                    title: 'Tòa',
+                    badgeColor: Colors.blue.shade50,
+                    badgeTextColor: const Color(0xFF0D47A1),
+                    child: _availableBuildings.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Text(
+                              'Không có tòa nhà nào trong khu này',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                            ),
+                          )
+                        : SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _buildBuildingChip('Tất cả'),
+                                ..._availableBuildings.map<Widget>((b) {
+                                  final code = b['ma_toa'] ?? '';
+                                  return _buildBuildingChip('Tòa $code');
+                                }),
+                              ],
+                            ),
+                          ),
+                  ),
+
+                  if (_hasActiveFilters) ...[
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          foregroundColor: Colors.red.shade700,
+                        ),
+                        icon: const Icon(Icons.refresh, size: 16),
+                        label: const Text('Đặt lại bộ lọc', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        onPressed: _resetFilters,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

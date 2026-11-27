@@ -213,6 +213,11 @@ class IncidentController extends Controller
             ] : null;
             $item->ktv_ten = $ktv ? $ktv->ho_va_ten : 'Chưa phân công';
 
+            // Đảm bảo alias phong_hoc luôn trỏ đến phongHoc
+            if (!$item->phong_hoc && $item->phongHoc) {
+                $item->phong_hoc = $item->phongHoc;
+            }
+
             // Lịch sử xử lý chi tiết (timeline)
             $item->lich_su_list = DB::table('lich_su_xu_ly')
                 ->leftJoin('nguoi_dung', 'lich_su_xu_ly.nguoi_thuc_hien_id', '=', 'nguoi_dung.ma_nguoi_dung')
@@ -243,9 +248,43 @@ class IncidentController extends Controller
 
         $oldStatus = $suCo->trang_thai;
         $newStatus = $request->input('trang_thai'); // VD: Đang xử lý, Hoàn thành
+
+        $currentUser = $request->user();
+        $isKtvOrStaff = $currentUser && in_array($currentUser->vai_tro, ['Kỹ thuật viên', 'Nhân viên']);
+
+        // RÀNG BUỘC NGHIỆP VỤ: Chỉ những sự cố đã được phân công hoặc đã tiếp nhận (Đang xử lý) mới được hoàn tất nghiệm thu
+        if ($newStatus == 'Hoàn thành') {
+            if ($oldStatus == 'Chờ tiếp nhận') {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Phiếu sự cố đang ở trạng thái "Chờ tiếp nhận". Vui lòng bấm "Tiếp nhận" trước khi hoàn tất nghiệm thu!'
+                ], 422);
+            }
+
+            // Nếu người thao tác là KTV: Chỉ KTV được phân công hoặc đã tiếp nhận phiếu này mới được quyền nghiệm thu
+            if ($isKtvOrStaff && (!$suCo->ky_thuat_vien_id || $suCo->ky_thuat_vien_id != $currentUser->ma_nguoi_dung)) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Chỉ Kỹ thuật viên được phân công hoặc đã tiếp nhận phiếu này mới có quyền hoàn tất & nghiệm thu!'
+                ], 403);
+            }
+        }
+
+        // Khi Kỹ thuật viên tiếp nhận sự cố:
+        if ($newStatus == 'Đang xử lý' && $isKtvOrStaff) {
+            // Nếu phiếu chưa có ai nhận, tự động gán cho KTV này
+            if (!$suCo->ky_thuat_vien_id) {
+                $suCo->ky_thuat_vien_id = $currentUser->ma_nguoi_dung;
+                $suCo->ngay_phan_cong = now();
+            }
+        }
+
         $suCo->trang_thai = $newStatus;
         if ($newStatus == 'Hoàn thành') {
             $suCo->ngay_hoan_thanh = now();
+            if ($isKtvOrStaff && !$suCo->ky_thuat_vien_id) {
+                $suCo->ky_thuat_vien_id = $currentUser->ma_nguoi_dung;
+            }
         }
         $suCo->save();
 
@@ -340,6 +379,11 @@ class IncidentController extends Controller
                 'lop_don_vi'    => $rep->lop_hoac_don_vi,
                 'vai_tro'       => $rep->vai_tro,
             ] : null;
+
+            // Đảm bảo alias phong_hoc luôn trỏ đến phongHoc
+            if (!$item->phong_hoc && $item->phongHoc) {
+                $item->phong_hoc = $item->phongHoc;
+            }
         }
 
         return response()->json([

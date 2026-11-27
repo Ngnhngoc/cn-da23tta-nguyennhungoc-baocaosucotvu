@@ -26,6 +26,7 @@ Route::post('/admin/rooms/{id}/equipments', [AdminController::class, 'updateRoom
 Route::post('/admin/rooms/{id}/toggle-status', [AdminController::class, 'toggleRoomStatus'])->name('admin.rooms.toggle');
 Route::post('/admin/users', [AdminController::class, 'addUser'])->name('admin.users.store');
 Route::get('/admin/rooms/{id}/print', [AdminController::class, 'printRoomQr'])->name('admin.rooms.print');
+Route::get('/admin/reports/equipment-print', [AdminController::class, 'printEquipmentReport'])->name('admin.reports.equipment');
 
 // Phục vụ file tĩnh kèm CORS header cho Flutter Web & Mobile
 Route::get('/storage/{path}', function ($path) {

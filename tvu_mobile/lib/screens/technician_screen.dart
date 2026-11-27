@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
+import '../widgets/user_profile_dialog.dart';
 import 'login_screen.dart';
 
 class TechnicianScreen extends StatefulWidget {
@@ -16,13 +17,40 @@ class TechnicianScreen extends StatefulWidget {
 class _TechnicianScreenState extends State<TechnicianScreen> {
   final ApiService _api = ApiService();
   List<dynamic> _incidents = [];
+  List<dynamic> _buildings = [];
+  List<dynamic> _campuses = [];
   bool _isLoading = true;
   bool _onlyAssignedToMe = true;
+
+  // Bộ lọc KTV
+  String _selectedStatus = 'Tất cả';
+  String _searchQuery = '';
+  String _campusFilter = 'Tất cả';
+  String _buildingFilter = 'Tất cả';
+  final TextEditingController _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadIncidents();
+    _loadAllData();
+  }
+
+  Future<void> _loadAllData() async {
+    setState(() => _isLoading = true);
+    final results = await Future.wait([
+      _api.getAllIncidents(assignedToMe: _onlyAssignedToMe),
+      _api.getBuildings(),
+      _api.getCampuses(),
+    ]);
+
+    if (mounted) {
+      setState(() {
+        _incidents = results[0] as List<dynamic>;
+        _buildings = results[1] as List<dynamic>;
+        _campuses = results[2] as List<dynamic>;
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _loadIncidents() async {
@@ -34,6 +62,297 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  String _getRoomCampusName(dynamic r) {
+    if (r is! Map) return 'Khu I';
+    final dn = r['day_nha'] ?? r['dayNha'];
+    if (dn != null && dn is Map) {
+      final kv = dn['khuon_vien'] ?? dn['khuonVien'];
+      if (kv != null && kv is Map) {
+        final name = (kv['ma_viet_tat'] ?? kv['ten_khuon_vien'] ?? '').toString().trim();
+        if (name.isNotEmpty) return name;
+      }
+    }
+    if (r['ten_khu'] != null && r['ten_khu'].toString().trim().isNotEmpty) {
+      return r['ten_khu'].toString().trim();
+    }
+    final maToa = (r['ma_toa'] ?? '').toString().toUpperCase();
+    if (maToa == 'A24') return 'Khu II';
+    return 'Khu I';
+  }
+
+  String _getRoomBuildingName(dynamic r) {
+    if (r is! Map) return 'Tòa nhà B21';
+    if (r['ten_day_nha'] != null && r['ten_day_nha'].toString().isNotEmpty) {
+      return r['ten_day_nha'].toString();
+    }
+    final dn = r['day_nha'] ?? r['dayNha'];
+    if (dn != null && dn is Map && dn['ten_day_nha'] != null) {
+      return dn['ten_day_nha'].toString();
+    }
+    final qr = (r['ma_qr_dinh_danh'] ?? '').toString();
+    final match = RegExp(r'^TVU-([A-Z0-9]+)-', caseSensitive: false).firstMatch(qr);
+    if (match != null) {
+      return 'Tòa nhà ${match.group(1)}';
+    }
+    return 'Tòa nhà B21';
+  }
+
+  String _getBuildingCampus(dynamic b) {
+    if (b is! Map) return 'Khu I';
+    final kv = b['khuon_vien'] ?? b['khuonVien'];
+    if (kv != null && kv is Map) {
+      final name = (kv['ma_viet_tat'] ?? kv['ten_khuon_vien'] ?? '').toString().trim();
+      if (name.isNotEmpty) return name;
+    }
+    final maToa = (b['ma_toa'] ?? '').toString().toUpperCase();
+    if (maToa == 'A24') return 'Khu II';
+    return 'Khu I';
+  }
+
+  List<String> get _uniqueCampusList {
+    final Set<String> list = {};
+    for (final c in _campuses) {
+      if (c is Map) {
+        final name = (c['ma_viet_tat'] ?? c['ten_khuon_vien'] ?? '').toString().trim();
+        if (name.isNotEmpty) list.add(name);
+      }
+    }
+    for (final b in _buildings) {
+      if (b is Map) {
+        final name = _getBuildingCampus(b);
+        if (name.isNotEmpty) list.add(name);
+      }
+    }
+    if (list.isEmpty) return ['Khu I', 'Khu II'];
+    final sorted = list.toList()..sort();
+    return sorted;
+  }
+
+  List<dynamic> get _availableBuildings {
+    if (_campusFilter == 'Tất cả') {
+      return _buildings;
+    }
+    return _buildings.where((b) {
+      if (b is! Map) return false;
+      final campus = _getBuildingCampus(b).trim().toLowerCase();
+      final filter = _campusFilter.trim().toLowerCase();
+      return campus == filter;
+    }).toList();
+  }
+
+  bool get _hasActiveFilters =>
+      _searchQuery.isNotEmpty ||
+      _campusFilter != 'Tất cả' ||
+      _buildingFilter != 'Tất cả' ||
+      _selectedStatus != 'Tất cả';
+
+  void _resetFilters() {
+    _searchCtrl.clear();
+    setState(() {
+      _searchQuery = '';
+      _selectedStatus = 'Tất cả';
+      _campusFilter = 'Tất cả';
+      _buildingFilter = 'Tất cả';
+    });
+  }
+
+  List<dynamic> get _filteredIncidents {
+    return _incidents.where((item) {
+      // 1. Lọc theo trạng thái
+      if (_selectedStatus != 'Tất cả' && (item['trang_thai'] ?? '') != _selectedStatus) {
+        return false;
+      }
+
+      final room = item['phongHoc'] ?? item['phong_hoc'];
+      final roomMap = room is Map ? room : <String, dynamic>{};
+      final roomNum = (roomMap['so_phong_day_du'] ?? roomMap['so_phong'] ?? '').toString().toLowerCase();
+      final pureRoom = (roomMap['so_phong'] ?? '').toString().toLowerCase();
+      final ticketCode = (item['ma_phieu_su_co'] ?? '').toString().toLowerCase();
+      final desc = (item['mo_ta_hu_hong'] ?? '').toString().toLowerCase();
+      final reporter = item['nguoi_bao_cao_info'] ?? item['nguoiBaoCao'];
+      final reporterName = (reporter != null ? (reporter['ho_va_ten'] ?? '') : '').toString().toLowerCase();
+
+      // 2. Tìm kiếm theo số phòng, mã phiếu, mô tả, người báo
+      final q = _searchQuery.trim().toLowerCase();
+      if (q.isNotEmpty) {
+        final matches = roomNum.contains(q) ||
+            pureRoom.contains(q) ||
+            ticketCode.contains(q) ||
+            desc.contains(q) ||
+            reporterName.contains(q);
+        if (!matches) return false;
+      }
+
+      // 3. Lọc theo Khu
+      if (_campusFilter != 'Tất cả') {
+        final campusName = _getRoomCampusName(roomMap).trim().toLowerCase();
+        final cFilter = _campusFilter.trim().toLowerCase();
+        if (campusName != cFilter) {
+          return false;
+        }
+      }
+
+      // 4. Lọc theo Tòa
+      if (_buildingFilter != 'Tất cả') {
+        final bName = _getRoomBuildingName(roomMap).toLowerCase();
+        final maToa = (roomMap['ma_toa'] ?? (roomMap['day_nha'] != null ? roomMap['day_nha']['ma_toa'] : '')).toString().toLowerCase();
+        final bFilter = _buildingFilter.toLowerCase().replaceAll('tòa', '').trim();
+        final matchesB = bName.contains(bFilter) ||
+            maToa == bFilter ||
+            'tòa $maToa' == _buildingFilter.toLowerCase() ||
+            bName.contains(_buildingFilter.toLowerCase());
+        if (!matchesB) return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
+  Widget _buildFilterRow({
+    required String icon,
+    required String title,
+    required Color badgeColor,
+    required Color badgeTextColor,
+    required Widget child,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 76,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+            decoration: BoxDecoration(
+              color: badgeColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: badgeTextColor.withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(icon, style: const TextStyle(fontSize: 12)),
+                const SizedBox(width: 4),
+                Text(
+                  title,
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: badgeTextColor),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCampusChip(String label) {
+    final bool isSelected = _campusFilter == label;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: FilterChip(
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? Colors.white : Colors.black87,
+          ),
+        ),
+        selected: isSelected,
+        onSelected: (val) {
+          setState(() {
+            _campusFilter = label;
+            _buildingFilter = 'Tất cả';
+          });
+        },
+        selectedColor: const Color(0xFF1B5E20),
+        backgroundColor: Colors.white,
+        checkmarkColor: Colors.white,
+        showCheckmark: isSelected,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(
+            color: isSelected ? const Color(0xFF1B5E20) : Colors.grey.shade300,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  Widget _buildBuildingChip(String label) {
+    final bool isSelected = _buildingFilter == label;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: FilterChip(
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? Colors.white : Colors.black87,
+          ),
+        ),
+        selected: isSelected,
+        onSelected: (val) {
+          setState(() => _buildingFilter = label);
+        },
+        selectedColor: const Color(0xFF1B5E20),
+        backgroundColor: Colors.white,
+        checkmarkColor: Colors.white,
+        showCheckmark: isSelected,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(
+            color: isSelected ? const Color(0xFF1B5E20) : Colors.grey.shade300,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(String label) {
+    final bool isSelected = _selectedStatus == label;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: FilterChip(
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? Colors.white : Colors.black87,
+          ),
+        ),
+        selected: isSelected,
+        onSelected: (val) {
+          setState(() => _selectedStatus = label);
+        },
+        selectedColor: const Color(0xFF1B5E20),
+        backgroundColor: Colors.white,
+        checkmarkColor: Colors.white,
+        showCheckmark: isSelected,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(
+            color: isSelected ? const Color(0xFF1B5E20) : Colors.grey.shade300,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
   }
 
   void _showZoomImage(BuildContext context, String url) {
@@ -558,8 +877,30 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
         elevation: 0,
         actions: [
           IconButton(
+            icon: CircleAvatar(
+              radius: 14,
+              backgroundColor: Colors.white24,
+              backgroundImage: (widget.user['avatar'] != null && widget.user['avatar'].toString().isNotEmpty)
+                  ? NetworkImage(widget.user['avatar'].toString())
+                  : null,
+              child: (widget.user['avatar'] == null || widget.user['avatar'].toString().isEmpty)
+                  ? const Icon(Icons.person, size: 18, color: Colors.white)
+                  : null,
+            ),
+            tooltip: 'Tài khoản & Đổi mật khẩu',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (_) => UserProfileDialog(
+                  user: widget.user,
+                  onAvatarUpdated: (_) => setState(() {}),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadIncidents,
+            onPressed: _loadAllData,
             tooltip: 'Làm mới',
           ),
           IconButton(
@@ -645,13 +986,140 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
             ),
           ),
 
+          // KHU VỰC BỘ LỌC TÌM KIẾM, KHU VÀ TÒA NHÀ
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. THANH TÌM KIẾM SỐ PHÒNG, MÃ PHIẾU, MÔ TẢ
+                TextField(
+                  controller: _searchCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Tìm theo số phòng (VD: B21.102, 102...), mã phiếu, mô tả...',
+                    hintStyle: TextStyle(fontSize: 12.5, color: Colors.grey.shade500),
+                    prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF1B5E20)),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF1B5E20), width: 1.5),
+                    ),
+                    isDense: true,
+                  ),
+                  onChanged: (val) => setState(() => _searchQuery = val),
+                ),
+                const SizedBox(height: 6),
+
+                // 2. HÀNG TRẠNG THÁI
+                _buildFilterRow(
+                  icon: '📌',
+                  title: 'Trạng thái',
+                  badgeColor: Colors.teal.shade50,
+                  badgeTextColor: const Color(0xFF1B5E20),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildStatusChip('Tất cả'),
+                        _buildStatusChip('Chờ tiếp nhận'),
+                        _buildStatusChip('Đang xử lý'),
+                        _buildStatusChip('Hoàn thành'),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 3. HÀNG KHUÔN VIÊN
+                _buildFilterRow(
+                  icon: '🏛️',
+                  title: 'Khu',
+                  badgeColor: Colors.green.shade50,
+                  badgeTextColor: const Color(0xFF1B5E20),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildCampusChip('Tất cả'),
+                        ..._uniqueCampusList.map((name) => _buildCampusChip(name)),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 4. HÀNG TÒA NHÀ (CHỈ HIỂN THỊ CÁC TÒA THUỘC KHU ĐÃ CHỌN)
+                _buildFilterRow(
+                  icon: '🏢',
+                  title: 'Tòa',
+                  badgeColor: Colors.lightGreen.shade50,
+                  badgeTextColor: const Color(0xFF1B5E20),
+                  child: _availableBuildings.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(
+                            'Không có tòa nhà nào trong khu này',
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                          ),
+                        )
+                      : SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _buildBuildingChip('Tất cả'),
+                              ..._availableBuildings.map<Widget>((b) {
+                                final code = b['ma_toa'] ?? '';
+                                return _buildBuildingChip('Tòa $code');
+                              }),
+                            ],
+                          ),
+                        ),
+                ),
+
+                if (_hasActiveFilters) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: Colors.red.shade700,
+                      ),
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Đặt lại bộ lọc', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      onPressed: _resetFilters,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
           const Divider(height: 1),
 
           // Danh sách sự cố
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _incidents.isEmpty
+                : _filteredIncidents.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -659,7 +1127,9 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
                             Icon(Icons.check_circle_outline, size: 60, color: Colors.grey[400]),
                             const SizedBox(height: 10),
                             Text(
-                              _onlyAssignedToMe ? 'Bạn chưa có sự cố nào được phân công' : 'Chưa có sự cố nào trong hệ thống',
+                              _hasActiveFilters
+                                  ? 'Không tìm thấy sự cố nào khớp với bộ lọc'
+                                  : (_onlyAssignedToMe ? 'Bạn chưa có sự cố nào được phân công' : 'Chưa có sự cố nào trong hệ thống'),
                               style: TextStyle(color: Colors.grey[600]),
                             ),
                           ],
@@ -669,9 +1139,9 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
                         onRefresh: _loadIncidents,
                         child: ListView.builder(
                           padding: const EdgeInsets.all(14),
-                          itemCount: _incidents.length,
+                          itemCount: _filteredIncidents.length,
                           itemBuilder: (context, index) {
-                            final item = _incidents[index];
+                            final item = _filteredIncidents[index];
                             final status = item['trang_thai'] ?? 'Chờ tiếp nhận';
                             final room = item['phongHoc'] ?? item['phong_hoc'];
                             String roomText;
@@ -759,55 +1229,97 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
                                     const Divider(height: 18),
 
                                     // Các nút thao tác của Kỹ thuật viên
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        OutlinedButton.icon(
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: const Color(0xFF1B5E20),
-                                            side: BorderSide(color: Colors.green.shade300),
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                                            visualDensity: VisualDensity.compact,
+                                    Builder(builder: (context) {
+                                      final myId = (widget.user['ma_nguoi_dung'] ?? widget.user['id'] ?? '').toString();
+                                      final assignedKtvId = (item['ky_thuat_vien_id'] ?? '').toString();
+                                      final bool hasKtv = assignedKtvId.isNotEmpty && assignedKtvId != '0' && assignedKtvId != 'null';
+                                      final bool isAssignedToMe = hasKtv && (assignedKtvId == myId);
+                                      final bool isAssignedToOther = hasKtv && (assignedKtvId != myId);
+                                      final String assignedName = (item['ktv_ten'] != null && item['ktv_ten'] != 'Chưa phân công')
+                                          ? item['ktv_ten']
+                                          : (item['ktv_info'] != null ? item['ktv_info']['ho_va_ten'] : 'Khác');
+
+                                      return Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          OutlinedButton.icon(
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: const Color(0xFF1B5E20),
+                                              side: BorderSide(color: Colors.green.shade300),
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                              visualDensity: VisualDensity.compact,
+                                            ),
+                                            icon: const Icon(Icons.badge_outlined, size: 15),
+                                            label: const Text('Xem Người Báo', style: TextStyle(fontSize: 12)),
+                                            onPressed: () => _showReporterDialog(item),
                                           ),
-                                          icon: const Icon(Icons.badge_outlined, size: 15),
-                                          label: const Text('Xem Người Báo', style: TextStyle(fontSize: 12)),
-                                          onPressed: () => _showReporterDialog(item),
-                                        ),
-                                        Row(
-                                          children: [
-                                            if (status == 'Chờ tiếp nhận') ...[
-                                              ElevatedButton.icon(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.blue.shade700,
-                                                  foregroundColor: Colors.white,
-                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                                  visualDensity: VisualDensity.compact,
-                                                ),
-                                                icon: const Icon(Icons.play_arrow, size: 16),
-                                                label: const Text('Tiếp Nhận', style: TextStyle(fontSize: 12)),
-                                                onPressed: () => _showUpdateStatusDialog(item, 'Đang xử lý'),
-                                              ),
+                                          Row(
+                                            children: [
+                                              // 1. Nếu phiếu "Chờ tiếp nhận": Hiện nút "Tiếp Nhận" (chưa được nghiệm thu ngay)
+                                              if (status == 'Chờ tiếp nhận') ...[
+                                                if (isAssignedToOther)
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
+                                                    child: Text('🔒 Đã giao cho $assignedName', style: TextStyle(color: Colors.grey.shade700, fontSize: 11.5, fontStyle: FontStyle.italic)),
+                                                  )
+                                                else
+                                                  ElevatedButton.icon(
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: Colors.blue.shade700,
+                                                      foregroundColor: Colors.white,
+                                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                      visualDensity: VisualDensity.compact,
+                                                    ),
+                                                    icon: const Icon(Icons.play_arrow, size: 16),
+                                                    label: const Text('Tiếp Nhận', style: TextStyle(fontSize: 12)),
+                                                    onPressed: () => _showUpdateStatusDialog(item, 'Đang xử lý'),
+                                                  ),
+                                              ],
+
+                                              // 2. Nếu phiếu "Đang xử lý" (đã tiếp nhận hoặc đã được phân công): Cho phép Hoàn Tất & Nghiệm Thu
+                                              if (status == 'Đang xử lý') ...[
+                                                if (isAssignedToMe)
+                                                  ElevatedButton.icon(
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: Colors.green.shade700,
+                                                      foregroundColor: Colors.white,
+                                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                      visualDensity: VisualDensity.compact,
+                                                    ),
+                                                    icon: const Icon(Icons.check_circle, size: 16),
+                                                    label: const Text('Hoàn Tất & Nghiệm Thu', style: TextStyle(fontSize: 12)),
+                                                    onPressed: () => _showUpdateStatusDialog(item, 'Hoàn thành'),
+                                                  )
+                                                else if (isAssignedToOther)
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+                                                    child: Text('🛠️ Đang xử lý bởi $assignedName', style: const TextStyle(color: Color(0xFF1565C0), fontSize: 11.5, fontWeight: FontWeight.bold)),
+                                                  )
+                                                else
+                                                  ElevatedButton.icon(
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: Colors.blue.shade700,
+                                                      foregroundColor: Colors.white,
+                                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                      visualDensity: VisualDensity.compact,
+                                                    ),
+                                                    icon: const Icon(Icons.play_arrow, size: 16),
+                                                    label: const Text('Tiếp Nhận', style: TextStyle(fontSize: 12)),
+                                                    onPressed: () => _showUpdateStatusDialog(item, 'Đang xử lý'),
+                                                  ),
+                                              ],
+
+                                              // 3. Nếu phiếu đã hoàn thành:
+                                              if (status == 'Hoàn thành') ...[
+                                                const Text('✅ Đã hoàn tất', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12.5)),
+                                              ],
                                             ],
-                                            if (status == 'Đang xử lý') ...[
-                                              ElevatedButton.icon(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.green.shade700,
-                                                  foregroundColor: Colors.white,
-                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                                  visualDensity: VisualDensity.compact,
-                                                ),
-                                                icon: const Icon(Icons.check_circle, size: 16),
-                                                label: const Text('Hoàn Tất & Nghiệm Thu', style: TextStyle(fontSize: 12)),
-                                                onPressed: () => _showUpdateStatusDialog(item, 'Hoàn thành'),
-                                              ),
-                                            ],
-                                            if (status == 'Hoàn thành') ...[
-                                              const Text('✅ Đã xong', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12.5)),
-                                            ],
-                                          ],
-                                        ),
-                                      ],
-                                    ),
+                                          ),
+                                        ],
+                                      );
+                                    }),
                                   ],
                                 ),
                               ),
